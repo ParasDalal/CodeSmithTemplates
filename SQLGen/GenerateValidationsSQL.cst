@@ -1,0 +1,147 @@
+﻿<%------------------------------------------------------------------------------------------
+* Author: Paras Dalal
+* Description: Generate base structure for the data entry win-forms
+------------------------------------------------------------------------------------------%>
+<%@ CodeTemplate Language="VB" Inherits="CodeSmith.BaseTemplates.SqlCodeTemplate" TargetLanguage="T-SQL" CompilerVersion="v3.5" Src="" Debug="True" Description="Generate common database access code for all tables" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Assembly Name="System.Data" %>
+<%@ Assembly Name="CodeSmith.BaseTemplates" %>
+<%@ Assembly Name="CodeSmith.CustomProperties" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+<%-- Namespace Imports --%>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Import Namespace="System.IO" %>
+<%@ Import Namespace="CodeSmith.CustomProperties" %>
+<%@ Import Namespace="CodeSmith.BaseTemplates" %>
+<%@ Import Namespace="System.Text.RegularExpressions" %>
+<%@ Import Namespace="System.Collections.Generic" %>
+<%@ Map Name="DbTypeVB" Src="DbType-VB.csmap" %>
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="01. Getting Started - Required" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%--@ Property Name="OutputFilePath" Type="System.String" Default="" Optional="False" Category="01. Getting Started - Required" Description="Path for the output file." --%>
+<%--@ Property Name="SampleBooleanProperty" Type="System.Boolean" Default="True" Optional="False" Category="Booleans" Description="This is a sample boolean property." --%>
+<% 
+    dim offSet as integer = 0
+    Dim txtFile As new system.IO.StreamWriter(OutputPath + "\genValidate.sql")
+    dim primaryKeyCol as PrimaryKeySchema
+    txtFile.WriteLine("SET ANSI_NULLS ON")
+    txtFile.WriteLine("GO")
+    txtFile.WriteLine("SET QUOTED_IDENTIFIER ON")
+    txtFile.WriteLine("GO")
+    dim ti as MetaData.TableInfo
+    dim fi as New Collection    
+    dim fld as metadata.FieldInfo
+    For each tbl as tableschema in SourceDatabase.Tables
+        if not tbl.HasPrimaryKey then
+            continue for
+        end if
+        ti = MetaData.TableExtension.getTableInfo(Sourcedatabase.Name, tbl.Name)
+        try
+            fi = MetaData.FieldExtension.getFieldInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get field information for : {0} Error:" + ex.ToString, tbl.Name)
+        end try
+        
+        primaryKeyCol = tbl.PrimaryKey
+        'Find out various types of validations required.
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1} Error: " + ex.ToString, tbl.Name, currcol.Name)
+            end try 
+            
+            dim mFieldDesc as string = String.Format("Value of {0}", currCol.Name)
+            if Not (fld.Description is nothing) then
+                mFieldDesc = fld.Description
+            end if
+            dim vSPRequired as Boolean = False
+            dim vUnique as Boolean = False
+            dim vRequired as Boolean = false
+            if fld.isUnique then
+                vSPRequired = True
+                vUnique = True
+                vRequired = True
+            end if
+            if fld.isRequired then
+                vSPRequired = True
+                vRequired = True
+            end if
+            if vSPRequired then
+                'Drop the existing procedure
+                txtFile.WriteLine(space(offSet) + "if exists(select 1 from sysobjects where name = " + "'" + "v{1}{0}" + "'" + ")", currcol.Name, tbl.Name)
+                txtFile.WriteLine(space(offSet) + "   drop procedure v{1}{0}", currcol.Name, tbl.Name)
+                txtFile.WriteLine("GO")
+                
+                'Create new procedure
+                txtFile.WriteLine(space(offSet) + "CREATE PROCEDURE [dbo].[v{1}{0}]", currcol.Name, tbl.Name)
+                offSet = offSet + 3
+                'txtFile.WriteLine(space(offSet) + "@{0} {1},", primaryKeyCol.MemberColumns(0).Name, primaryKeyCol.MemberColumns(0).GetType())
+                txtFile.WriteLine(space(offSet) + "{0},", GetSqlParameterStatement(primaryKeyCol.MemberColumns(0)))
+	            txtFile.WriteLine(space(offSet) + "{0},", GetSqlParameterStatement(currCol))
+	            txtFile.WriteLine(space(offSet) + "@ErrMsg varchar(200) output")
+                txtFile.WriteLine(space(offSet) + "AS")
+                txtFile.WriteLine(space(offSet) + "set @{0} = replace(@{0}, ' ', '')", currcol.Name)
+                if vRequired then
+                    txtFile.WriteLine(space(offSet) + "if isnull(@{0}, '') = ''", currcol.Name)
+                    txtFile.WriteLine(space(offSet) + "begin")
+                        offSet = offSet + 3
+                        	txtFile.WriteLine(space(offSet) + "set @ErrMsg = '{0} cannot be empty'", mFieldDesc)
+                        	txtFile.WriteLine(space(offSet) + "return")
+                        offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "end")
+                end if
+                if vUnique then
+                    txtFile.WriteLine(space(offSet) + "if exists(select 1 from [{1}] where replace({0}, ' ', '') = @{0} and {2} <> @{2})", currcol.Name, tbl.Name, primaryKeyCol.MemberColumns(0).Name)
+                    txtFile.WriteLine(space(offSet) + "begin")
+                        offSet = offSet + 3
+                        	txtFile.WriteLine(space(offSet) + "set @ErrMsg = '{0} must be unique.'", mFieldDesc)
+                        	txtFile.WriteLine(space(offSet) + "return")
+                        offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "end")
+                end if
+                
+                txtFile.WriteLine(space(offSet) + "set @ErrMsg = ''  -- This is OK case")
+                txtFile.WriteLine(space(offSet) + "return")
+                offSet = OffSet - 3
+                txtFile.WriteLine(space(offSet) + "GO")
+            end if
+        next
+    Next
+   txtFile.Close()
+%>
+All Done !!
+
+<script runat="template">
+' My functions here.
+private templateOutputPath as string = ""
+	<Editor(GetType(System.Windows.Forms.Design.FolderNameEditor), GetType(System.Drawing.Design.UITypeEditor)), _
+	Category("01. Getting Started - Required"), Description("Required - The directory to which every output file is generated.")> _
+public property OutputPath as string
+   get 
+		return templateOutputPath
+		end get
+	set(val as string)
+		templateOutputPath = val
+		end set
+end property
+public function GetSelectAllProcedureName(TablePrefix as string, entityName as string) as string
+    return String.Format("{0}Select{1}All", TablePrefix, GetEntityName(TablePrefix, entityName, true))
+End Function
+
+Public Function GetEntityName(TablePrefix as string, entityName as string, plural As Boolean) As String
+	If entityName.StartsWith(TablePrefix) Then
+		entityName = entityName.Substring(TablePrefix.Length)
+	End If
+
+	If plural Then
+		entityName = StringUtil.ToPlural(entityName)
+	Else
+		entityName = StringUtil.ToSingular(entityName)
+	End If
+
+	Return entityName
+End Function
+
+</script>

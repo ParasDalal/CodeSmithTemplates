@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<codeSmith xmlns="http://www.codesmithtools.com/schema/csp.xsd">
+  <variables>
+    <add key="ConnectionString1" value="Data Source=desktop4\sql2012;Initial Catalog=Rajpath;Integrated Security=True" />
+    <add key="ConnectionString2" value="Data Source=desKTOP4\sql2012;Initial Catalog=Jewellery;Integrated Security=True" />
+    <add key="ConnectionString3" value="Data Source=dev\SQL2012;Initial Catalog=Jewellery;Integrated Security=True" />
+  </variables>
+  <propertySets>
+    <propertySet name="SQLStoredProc" template="SQLGen\SQL_CRUD_Generator.cst">
+      <property name="IsolationLevel">ReadCommitted</property>
+      <property name="IncludeDropStatements">True</property>
+      <property name="ProcedurePrefix">usp_</property>
+      <property name="TablePrefix">tbl_</property>
+      <property name="AutoExecuteScript">False</property>
+      <property name="IncludeInsert">True</property>
+      <property name="IncludeUpdate">True</property>
+      <property name="IncludeInsertUpdate">True</property>
+      <property name="IncludeDelete">True</property>
+      <property name="IncludeSelect">True</property>
+      <property name="IncludeSelectAll">True</property>
+      <property name="IncludeSelectPaged">True</property>
+      <property name="IncludeSelectByForeignKey">True</property>
+      <property name="IncludeSelectByIndex">True</property>
+      <property name="IncludeSelectDynamic">True</property>
+      <property name="IncludeDeleteByForeignKey">True</property>
+      <property name="IncludeDeleteByIndex">True</property>
+      <property name="IncludeDeleteDynamic">True</property>
+      <property name="IncludeValidation">True</property>
+      <property name="OutputFile">P:\SoftProjects\JewelleryPackage\SQL\SQL\Jewellery_Procedures.sql</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+    </propertySet>
+    <propertySet name="SQLValidations" template="SQLGen\GenerateValidationsSQL.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\SQL\SQL</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+      <property name="OutputFile" />
+    </propertySet>
+    <propertySet name="Forms" template="ProgGen\GenerateForms.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\JewelleryWin\Gen</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+      <property name="FilePrefix">gen</property>
+    </propertySet>
+    <propertySet name="FormDBAccess" template="ProgGen\GenerateDBAccess.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\JewelleryWin\Gen</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+    </propertySet>
+    <propertySet name="FormValidations" template="ProgGen\GenerateValidations.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\JewelleryWin\Gen</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+    </propertySet>
+    <propertySet name="ChildForms" template="ProgGen\GenerateChildForms.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\JewelleryWin\Gen</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+      <property name="FilePrefix">fb</property>
+    </propertySet>
+    <propertySet name="SQLTableStructureChanges" template="SQLGen\GenerateDBChanges.cst">
+      <property name="OutputPath">P:\SoftProjects\JewelleryPackage\SQL\RunFirst</property>
+      <property name="SourceDatabase">
+        <connectionString>$(ConnectionString3)</connectionString>
+        <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
+      </property>
+    </propertySet>
+  </propertySets>
+</codeSmith>

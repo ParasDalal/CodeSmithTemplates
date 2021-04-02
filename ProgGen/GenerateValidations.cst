@@ -1,0 +1,115 @@
+﻿<%------------------------------------------------------------------------------------------
+* Author: Paras Dalal
+* Description: Generate base structure for the data entry win-forms
+------------------------------------------------------------------------------------------%>
+<%@ CodeTemplate Language="VB" TargetLanguage="VB" Src="" Inherits="" Debug="True" Description="Generate common database access code for all tables" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="01. Getting Started - Required" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%--@ Property Name="OutputFilePath" Type="System.String" Default="" Optional="False" Category="01. Getting Started - Required" Description="Path for the output file." --%>
+<%--@ Property Name="SampleBooleanProperty" Type="System.Boolean" Default="True" Optional="False" Category="Booleans" Description="This is a sample boolean property." --%>
+<%@ Assembly Name="System.Data" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Import Namespace="System.IO" %>
+<%@ Map Name="DbTypeVB" Src="DbType-VB.csmap" %>
+<% 
+    dim offSet as integer = 0
+    Dim txtFile As new system.IO.StreamWriter(OutputPath + "\genValidate.vb")
+    txtFile.WriteLine("Imports System.Data.SqlClient")
+    txtFile.WriteLine("public Class genValidate")
+    offSet = offSet + 3
+    dim ti as MetaData.TableInfo
+    dim fi as New Collection
+    dim fld as metadata.FieldInfo
+    
+    For each tbl as tableschema in SourceDatabase.Tables
+        if not tbl.HasPrimaryKey  then
+            continue for
+        end if
+        try
+            ti = MetaData.TableExtension.getTableInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get table information {0}" + ex.ToString, tbl.Name)
+        end try
+        try
+            fi = MetaData.FieldExtension.getFieldInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get field information for : {0} Error:" + ex.ToString, tbl.Name)
+        end try
+        
+        txtFile.WriteLine(space(offSet) + "Public Shared Function gValidate{0}(ByVal dr As DataRow) As String", tbl.Name)
+        offSet = OffSet + 3
+        txtFile.WriteLine(space(offSet) + "dim strErr as string = " + """" + """" )
+        dim pkName as String
+        dim emptyValue as String
+        pkName = tbl.PrimaryKey.MemberColumns(0).Name
+        
+        select case tbl.PrimaryKey.MemberColumns(0).DataType
+            case dbtype.Guid
+                emptyValue = "GUID.Empty"
+            case dbtype.Int16, dbtype.Int32, dbtype.Int64
+                emptyValue = "0"
+            case else
+                emptyValue = "0"
+        end select
+        'Find out various types of validations required.
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1} Error: " + ex.ToString, tbl.Name, currcol.Name)
+            end try 
+            
+            if fld.isUnique then
+               txtFile.WriteLine(space(offSet) + "strErr = strErr + iif(strErr.length > 0, vbCrLf, " + """" + """" + ") + genModDB.v{1}{0}(IIf(dr(" + """" + "{2}" + """" + ") Is DBNull.Value, {3}, dr(" + """" + "{2}" + """" + ")), IIf(dr(" + """" + "{0}" + """" + ") Is DBNull.Value, "+ """" + """" + ", dr(" + """" + "{0}" + """" + ")))", currcol.Name, tbl.Name, pkName, emptyValue)
+            end if
+            if fld.isRequired then
+               txtFile.WriteLine(space(offSet) + "strErr = strErr + iif(strErr.length > 0, vbCrLf, " + """" + """" + ") + genModDB.v{1}{0}(IIf(dr(" + """" + "{2}" + """" + ") Is DBNull.Value, {3}, dr(" + """" + "{2}" + """" + ")), IIf(dr(" + """" + "{0}" + """" + ") Is DBNull.Value, "+ """" + """" + ", dr(" + """" + "{0}" + """" + ")))", currcol.Name, tbl.Name, pkName, emptyValue)
+            end if
+        next
+        txtFile.WriteLine(space(offSet) + "Return strErr")
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Function")
+            
+    Next
+    offSet = offSet - 3
+    txtFile.WriteLine(space(offSet) + "End Class")
+   txtFile.Close()
+%>
+'All Done !!
+
+<script runat="template">
+' My functions here.
+private templateOutputPath as string = ""
+	<Editor(GetType(System.Windows.Forms.Design.FolderNameEditor), GetType(System.Drawing.Design.UITypeEditor)), _
+	Category("01. Getting Started - Required"), Description("Required - The directory to which every output file is generated.")> _
+public property OutputPath as string
+   get 
+		return templateOutputPath
+		end get
+	set(val as string)
+		templateOutputPath = val
+		end set
+end property
+public function GetSelectAllProcedureName(TablePrefix as string, entityName as string) as string
+    return String.Format("{0}Select{1}All", TablePrefix, GetEntityName(TablePrefix, entityName, true))
+End Function
+
+Public Function GetEntityName(TablePrefix as string, entityName as string, plural As Boolean) As String
+	If entityName.StartsWith(TablePrefix) Then
+		entityName = entityName.Substring(TablePrefix.Length)
+	End If
+
+	If plural Then
+		entityName = StringUtil.ToPlural(entityName)
+	Else
+		entityName = StringUtil.ToSingular(entityName)
+	End If
+
+	Return entityName
+End Function
+
+</script>

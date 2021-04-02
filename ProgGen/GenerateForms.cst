@@ -1,0 +1,1286 @@
+﻿<%------------------------------------------------------------------------------------------
+* Author: Paras Dalal
+* Description: Generate base structure for the data entry win-forms
+------------------------------------------------------------------------------------------%>
+<%@ CodeTemplate Language="VB" TargetLanguage="VB" Src="" Inherits="" Debug="True" Description="Template description here." %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="01. Getting Started - Required" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%@ Property Name="FilePrefix" Type="System.String" Optional="False" Category="01. Getting Started - Required" Description="Form prefix" %>
+<%--@ Property Name="OutputFilePath" Type="System.String" Default="" Optional="False" Category="01. Getting Started - Required" Description="Path for the output file." --%>
+<%--@ Property Name="SampleBooleanProperty" Type="System.Boolean" Default="True" Optional="False" Category="Booleans" Description="This is a sample boolean property." --%>
+<%@ Assembly Name="System.Data" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Import Namespace="System.IO" %>
+<%@ Map Name="DbTypeVB" Src="DbType-VB.csmap" %>
+<%  For each tbl as tableschema in SourceDatabase.Tables
+        if not tbl.HasPrimaryKey  then
+            continue for
+        end if
+        dim ti as MetaData.TableInfo
+
+        ti = MetaData.TableExtension.getTableInfo(SourceDatabase.Name, tbl.Name)
+        dim fi as New Collection
+        dim fld as metadata.FieldInfo
+        try
+            fi = MetaData.FieldExtension.getFieldInfo(SourceDatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get field information for : {0} Error:" + ex.ToString, tbl.Name)
+        end try
+        if Not (ti.TableType is nothing) then
+            if ucase(ti.TableType) = UCase("Child") then
+                continue For 
+            end if
+            if ucase(ti.TableType) = UCase("System") then
+                continue For 
+            end if
+        end if
+        dim isLookup as Boolean = False
+        dim isReadOnly as Boolean = False
+        dim strLookupTable as String
+        dim strDispColumn as String
+        dim strValueColumn as String
+        dim pkName as String
+        dim emptyValue as String
+        dim pkDbType as String
+        pkName = tbl.PrimaryKey.MemberColumns(0).Name
+        pkDbType = tbl.PrimaryKey.MemberColumns(0).DataType.ToString
+        select case tbl.PrimaryKey.MemberColumns(0).DataType
+            case DBType.Guid
+                emptyValue = "GUID.Empty"
+            case DBType.Int16, DBType.Int32, DBType.Int64
+                emptyValue = "0"
+            case else
+                emptyValue = "0"
+        end select
+        dim offSet as integer = 0
+        dim hasDetail as Boolean = False
+        dim sDetailTableName as String = ""
+        dim sDetailType as String = ""
+        dim procAfterSave as String = ""
+        dim procBeforeSave as String = ""
+        dim procAfterCancel as String = ""
+        dim procAfterValuesUpdate as String = ""
+        dim procBeforeLoad as String = ""
+        dim procEnableFieldsExtra as String = ""
+        dim procAfterFieldUpdate as String = ""
+        dim AllowAddOption as Boolean = True
+        dim AllowEditOption as Boolean = True
+        dim AllowDeleteOption as Boolean = True
+        dim tempStr as string = ""
+        Dim txtFile As new system.IO.StreamWriter(OutputPath + "\" + FilePrefix + tbl.Name + ".vb")
+        if Not (ti.DetailTable is nothing) then
+            sDetailTableName = ti.DetailTable
+            hasDetail = True
+            if Not (ti.DetailType is nothing) then
+                sDetailType = ti.DetailType
+            end if
+        end if
+        if Not (ti.ProcAfterSave is nothing) then
+            procAfterSave = ti.ProcAfterSave
+        end if
+        if Not (ti.procBeforeSave is nothing) then
+            procBeforeSave = ti.procBeforeSave
+        end if
+        if Not (ti.procAfterCancel is nothing) then
+            procAfterCancel = ti.procAfterCancel
+        end if        
+        if Not (ti.procAfterValuesUpdate is nothing) then
+            procAfterValuesUpdate = ti.procAfterValuesUpdate
+        end if  
+        if Not (ti.procBeforeLoad is nothing) then
+            procBeforeLoad = ti.procBeforeLoad
+        end if         
+        if Not (ti.procEnableFieldsExtra is nothing) then
+            procEnableFieldsExtra = ti.ProcEnableFieldsExtra
+        end if         
+        if (ti.AddNotAllowed) then
+            AllowAddOption = False
+        end if   
+        if (ti.DeleteNotAllowed) then
+            AllowDeleteOption = False
+        end if   
+        if (ti.EditNotAllowed) then
+            AllowEditOption = False
+        end if   
+        txtFile.WriteLine("Partial Public Class frm{0}", tbl.Name)
+        offSet = offSet + 3
+        txtFile.WriteLine("dim dtSQLMinDate as datetime = CDate(SqlTypes.SqlDateTime.MinValue)")
+        if hasDetail and sDetailType = "Grid" then   
+            txtFile.WriteLine(string.Format("Dim frmDetail As New {0}", sDetailTableName))
+        end if 
+        if ti.ExtraFormWideScope <> "" then
+            txtFile.WriteLine(ti.ExtraFormWideScope)
+        end if
+        txtFile.WriteLine(space(offSet) +"Dim WithEvents bm As BindingManagerBase")
+        if ti.UseYrFilter then
+            txtFile.WriteLine(space(offSet) +"Dim dt{0} As DataTable = genModDB.getAllYr{0}()", tbl.Name)
+        else
+            txtFile.WriteLine(space(offSet) +"Dim dt{0} As DataTable = genModDB.getAll{0}()", tbl.Name)
+        end if
+        if Not (ti.CustomRefTables is Nothing) then
+            dim tblNames() as String
+            tblNames = Split(ti.CustomRefTables, "|")
+            for i as Integer = 0 to tblNames.Length - 1
+                txtFile.WriteLine(space(offSet) +"Dim dt{0} As DataTable = ModDB.getdt{0}()", tblNames(i))
+            next
+        end if
+        if Not (ti.StdRefTables is Nothing) then
+            dim tblNames() as String
+            tblNames = Split(ti.StdRefTables, "|")
+            for i as Integer = 0 to tblNames.Length - 1
+                txtFile.WriteLine(space(offSet) +"Dim dtr{0} As DataTable = ModDB.getReferenceTable(" + """" + "{0}" + """" + ")", tblNames(i))
+            next
+        end if
+        
+        txtFile.WriteLine(space(offSet) +"Dim currRow As DataRow")
+        txtFile.WriteLine(space(offSet) +"Dim prevRow As DataRow = Nothing")
+        txtFile.WriteLine(space(offSet) +"Dim savedPosi As Integer")
+        txtFile.WriteLine(space(offSet) +"Dim frmIsLoading As Boolean = True")
+        if ti.AllowFilter then
+            txtFile.WriteLine(space(offSet) +"Dim isFilterOn As Boolean = False")
+            txtFile.WriteLine(space(offSet) +"Friend tblFilterIds As datatable = Nothing")
+        end if
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnExitClicked() Handles mnu.btnExitClicked")
+        offSet = OffSet + 3
+        txtFile.WriteLine(space(offSet) + "Me.Close()")
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        if hasDetail then
+            txtFile.WriteLine(space(offSet) + "Dim dt{0} as DataTable", sDetailTableName)
+        end if
+        txtFile.WriteLine(space(offSet) + "Private Sub frm{0}_Load(sender As Object, e As EventArgs) Handles MyBase.Load", tbl.Name)
+        offSet = OffSet + 3
+        if procBeforeLoad <> "" then
+            txtFile.WriteLine(space(offSet) + procBeforeLoad)    
+        end if
+        if ti.AllowFilter then
+            txtFile.WriteLine(space(offSet) + "tblFilterIds = new datatable()")  
+            txtFile.WriteLine(space(offSet) + "Dim dcId As DataColumn")  
+            txtFile.WriteLine(space(offSet) + "dcId = New DataColumn(" + """" + "Id" + """" + ", GetType(System.Int32))")  
+            txtFile.WriteLine(space(offSet) + "tblFilterIds.Columns.Add(dcId)")
+        end if
+        txtFile.WriteLine(space(offSet) + "mnu.AllowAdd = isAddAllowed")           
+        txtFile.WriteLine(space(offSet) + "mnu.AllowDelete = isDeleteAllowed")           
+        txtFile.WriteLine(space(offSet) + "mnu.AllowEdit = isEditAllowed")           
+        txtFile.WriteLine(space(offSet) + "mnu.AllowPrint = isPrintAllowed")   
+        if ti.AllowFilter then
+            txtFile.WriteLine(space(offSet) + "mnu.btnFilterActivate()")   
+        end if
+        if AllowAddOption = False then
+            txtFile.WriteLine(space(offSet) + "mnu.AllowAdd = False")   
+        end if
+        if AllowEditOption = False then
+            txtFile.WriteLine(space(offSet) + "mnu.AllowEdit = False")   
+        end if
+        if AllowDeleteOption = False then
+            txtFile.WriteLine(space(offSet) + "mnu.AllowDelete = False")   
+        end if
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+            end try 
+            isLookup = False
+            isReadOnly = False
+            if  (fld.isReadOnly) then
+                isReadOnly = True
+            end if
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("System") then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Auto") then
+                    Continue For
+                end if                
+                if ucase(fld.FieldType) = ucase("Lookup") then
+                    isLookup = True
+                    strLookupTable = ucase(fld.LookupTable)
+                    strDispColumn = ucase(fld.LookupDisplay)
+                    strValueColumn = ucase(fld.LookupValue)
+                end if
+                if ucase(fld.FieldType) = ucase("ReadOnly") then
+                    isReadOnly = True
+                end if
+            end if
+            if isLookup then
+                generateComboBox(txtFile, offSet, currCol, strLookupTable, strDispColumn, strValueColumn, fld)
+
+            else if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 and not isLookup then
+                tempStr = currCol.Name.Substring(0, currCol.Name.Length - 4)
+                generateComboBox(txtFile, offSet, currCol, tempStr, "Description", "GUID", fld)
+                
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.OriginalDataSource = dt{1}"), currCol.Name, tempStr)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.DisplayMember = " + """" + "Description" +""""), currCol.Name)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.ValueMember = " + """" + "GUID" +""""), currCol.Name)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.DropDownStyle = ComboBoxStyle.DropDownList"), currCol.Name)
+'                if fld.LookUpDispCode then
+'                    txtFile.WriteLine((space(offSet) + "cmb{0}.DispCode = True"), currCol.Name)
+'                end if                
+            else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" and not isLookup then
+                tempStr = "r" + currCol.Name.Substring(0, currCol.Name.Length - 2)
+                generateComboBox(txtFile, offSet, currCol, tempStr, "Description", "Id", fld)
+                
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.OriginalDataSource = dtr{1}"), currCol.Name, tempStr)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.DisplayMember = " + """" + "Description" +""""), currCol.Name)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.ValueMember = " + """" + "Id" +""""), currCol.Name)
+'                txtFile.WriteLine((space(offSet) + "cmb{0}.DropDownStyle = ComboBoxStyle.DropDownList"), currCol.Name)
+'                if fld.LookUpDispCode then
+'                    txtFile.WriteLine((space(offSet) + "cmb{0}.DispCode = True"), currCol.Name)
+'                end if                
+            else if (currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int32 or currCol.DataType = DbType.Int64) and ucase(right(currCol.Name,2)) <> "ID"   then
+                txtFile.WriteLine((space(offSet) + "n{0}.NumDecimals = 0"), currCol.Name)
+            end if
+
+        next
+        txtFile.WriteLine(space(offSet) + "bm = Me.BindingContext(dt{0})", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "bm.Position = 0")
+        txtFile.WriteLine(space(offSet) + "defineConstraints()")
+        txtFile.WriteLine(space(offSet) + "enableFields(False)")
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        if ti.Description.Length > 0 then
+            txtFile.WriteLine(space(offset) + "me.text = " + """" + "{0}"  + """", ti.Description)
+        end if
+        txtFile.WriteLine(space(offSet) + "frmIsLoading = False")
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub defineConstraints()")
+        offSet = OffSet + 3
+        'txtFile.WriteLine(space(offSet) + "dt{0} = genModdb.getAll{0}()", tbl.name)
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+            end try             
+            isLookup = False
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("System")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Auto")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Lookup") then
+                    isLookup = True
+                    strLookupTable = ucase(fld.LookupTable)
+                    strDispColumn = ucase(fld.LookupDisplay)
+                    strValueColumn = ucase(fld.LookupValue)
+                end if   
+            end if        
+            if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                dim txtLen as integer
+                txtLen = iif(currCol.Size < 0, 25565, currCol.size)
+                txtFile.WriteLine(space(offSet) + "txt{0}.MaxLength = {1}", currCol.Name, txtLen)
+            else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then  'Identity column of type Int
+                'Nothing for the time being
+            else if isLookup then
+                'Nothing for the time being
+            else if currCol.DataType = DBType.Int32 or currCol.DataType = DBType.Int16 or currCol.DataType = DBType.Decimal then
+                if not fld.Format is nothing then
+                    txtFile.WriteLine(space(offSet) + "n{0}.Mask = {1}", currCol.Name, Fld.Format)
+                end if
+            else if currCol.DataType = DbType.DateTime or currCol.DataType = DbType.Date or currCol.DataType = DbType.DateTime2 then
+                'Nothing for the time being.
+            else if currCol.DataType = DbType.Time then
+                'Nothing for the time being
+            else    
+                txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+            end if
+        next    
+'        txtFile.WriteLine(space(offSet) + "bm = Me.BindingContext(dt{0})", tbl.Name)
+'        txtFile.WriteLine(space(offSet) + "bm.Position = 0")
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+
+        txtFile.WriteLine(space(offSet) + "Private Sub enableFields(enable As Boolean)")
+        offSet = OffSet + 3
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+            end try             
+            isLookup = False
+            isReadOnly = False
+            if (fld.isReadOnly) then
+                isReadOnly = True
+            end if            
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("System")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Auto")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Lookup") then
+                    isLookup = True
+                    strLookupTable = ucase(fld.LookupTable)
+                    strDispColumn = ucase(fld.LookupDisplay)
+                    strValueColumn = ucase(fld.LookupValue)
+                end if   
+                if ucase(fld.FieldType) = ucase("ReadOnly") then
+                    isReadOnly = True
+                end if                 
+            end if        
+            if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then  'Identity column of type GUID
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = False", currCol.Name) 
+                else
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = enable", currCol.Name) 
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.ClearBoxes = (mnu.lastCommand = "+""""+"A"+""""+")", currCol.Name) 
+                end if
+            else if isLookup then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = False", currCol.Name) 
+                else
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = enable", currCol.Name)
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.ClearBoxes = (mnu.lastCommand = "+""""+"A"+""""+")", currCol.Name) 
+                end if
+            else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = False", currCol.Name) 
+                else
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.Enabled = enable", currCol.Name)
+                    txtFile.WriteLine(space(offSet) + "cmb{0}.ClearBoxes = (mnu.lastCommand = "+""""+"A"+""""+")", currCol.Name) 
+                end if
+            else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "txt{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "txt{0}.Enabled = enable", currCol.Name)
+                end if
+            else if currCol.DataType = DBType.Boolean then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "chk{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "chk{0}.Enabled = enable", currCol.Name)
+                end if
+            else if currCol.DataType = DBType.Int32 and ucase(currCol.Name) <> "ID" then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "n{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "n{0}.Enabled = enable", currCol.Name)
+                end if
+            else if currCol.DataType = DBType.Decimal and ucase(currCol.Name) <> "ID" then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "n{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "n{0}.Enabled = enable", currCol.Name)
+                end if
+            else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "d{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "d{0}.Enabled = enable", currCol.Name)
+                end if
+            else if currCol.DataType = DbType.Time then
+                if isReadOnly then
+                    txtFile.WriteLine(space(offSet) + "t{0}.Enabled = False", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "t{0}.Enabled = enable", currCol.Name)
+                end if
+            else    
+                txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+            end if
+        next
+        If hasDetail then
+            'txtFile.WriteLine(space(offSet) + "grd{0}.EnableFields(enable)", sDetailTableName)
+            txtFile.WriteLine(space(offSet) + "grd{0}.Enabled = enable", sDetailTableName)
+        end if
+        if procEnableFieldsExtra <> "" then
+            txtFile.WriteLine(space(offSet) + "{0}(enable)", procEnableFieldsExtra)
+        end if
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnAddClicked() Handles mnu.btnAddClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "savedPosi = bm.Position")
+        txtFile.WriteLine(space(offSet) + "enableFields(True)")
+        txtFile.WriteLine(space(offSet) + "currRow = dt{0}.NewRow", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "dt{0}.Rows.Add(currRow)", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "putDefaultValues()")        
+        txtFile.WriteLine(space(offSet) + "bm.Position = dt{0}.Rows.Count - 1", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        if ti.ProcOnAdd <> "" then
+            txtFile.WriteLine(space(offSet) + ti.ProcOnAdd)
+        end if
+        if ti.FirstControlName <> "" then
+            txtFile.WriteLine(space(offSet) + ti.FirstControlName + ".Focus()")
+        end if
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnCancleClicked() Handles mnu.btnCancleClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "dt{0}.RejectChanges", tbl.Name)
+        if hasDetail then
+            txtFile.WriteLine(space(offSet) + "dt{0}.RejectChanges", sDetailTableName)
+        end if
+        txtFile.WriteLine(space(offSet) + "enableFields(False)")
+        txtFile.WriteLine(space(offSet) + "bm.Position = savedPosi")
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        if procAfterCancel <> "" then
+            txtFile.WriteLine(space(offSet) + procAfterCancel)    
+        end if        
+        txtFile.WriteLine(space(offSet) + "me.Refresh()")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnDeleteClicked() Handles mnu.btnDeleteClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "Dim dlgResult As DialogResult")
+        txtFile.WriteLine(space(offSet) + "dlgResult = MessageBox.Show("+""""+"Delete current record?"+""""+", "+""""+"Delete?"+""""+", MessageBoxButtons.YesNo)")
+        txtFile.WriteLine(space(offSet) + "If dlgResult = Windows.Forms.DialogResult.No Then")
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "Exit Sub")
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        if ti.ProcBeforeDelete <> "" then
+            txtFile.WriteLine(space(offSet) + "if {0} then", ti.ProcBeforeDelete)
+            txtFile.WriteLine(space(offSet) + "   Return")
+            txtFile.WriteLine(space(offSet) + "End If")
+        end If 
+        txtFile.WriteLine(space(offSet) + "Dim dr As DataRow")
+        txtFile.WriteLine(space(offSet) + "savedPosi = bm.Position")
+        txtFile.WriteLine(space(offSet) + "dr = dt{0}.Rows(bm.Position)", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "If dt{0}.Rows.Count - 1 >= savedPosi Then", tbl.Name)
+            offSet = offSet + 3
+            if ti.ReplaceDelete <> "" then
+                txtFile.WriteLine(space(offSet) + "{0}", ti.ReplaceDelete)
+            else
+                txtFile.Write(space(offSet) + "genModdb.delete{0}(", tbl.Name)
+                for each pkCol as ColumnSchema in tbl.PrimaryKey.MemberColumns
+                        txtFile.Write("dr("+""""+"{0}"+""""+")", pkCol.Name)
+                next
+                txtFile.WriteLine(")")
+            end if
+            if hasDetail then
+                if ti.ReplaceDetailDelete <> "" then
+                    txtFile.WriteLine(space(offSet) + "{0}", ti.ReplaceDetailDelete)
+                else
+                    txtFile.WriteLine(space(offSet) + "genModdb.delete{0}Details(dr("+""""+"{1}"+""""+"))", sDetailTableName, pkName)
+                end if
+                
+            end if
+            txtFile.WriteLine(space(offSet) + "dt{0}.Rows.Remove(currRow)", tbl.name)
+            txtFile.WriteLine(space(offSet) + "dt{0}.AcceptChanges()", tbl.name)
+'            txtFile.WriteLine(space(offSet) + "defineConstraints()")
+'            txtFile.WriteLine(space(offSet) + "bm.Position = savedPosi")
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "Else")
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "bm.Position = 0")
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        txtFile.WriteLine(space(offSet) + "If dt{0}.Rows.Count = 0 Then", tbl.Name)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "MessageBox.Show("+""""+"Last Record Deleted"+""""+")")
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "Else")    
+            offSet = offSet + 3
+            'txtFile.WriteLine(space(offSet) + "dt{0} = genModDB.getAll{0}()", tbl.name)
+            txtFile.WriteLine(space(offSet) + "bm.Position = savedPosi")
+            txtFile.WriteLine(space(offSet) + "currRow = dt{0}(bm.Position)", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "defineConstraints()")
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        if ti.ProcAfterDelete <> "" then
+            txtFile.WriteLine(space(offSet) + ti.ProcAfterDelete)
+        end If 
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        txtFile.WriteLine(space(offSet) + "Me.Refresh()")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnEditClicked() Handles mnu.btnEditClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "savedPosi = bm.Position")
+        txtFile.WriteLine(space(offSet) + "currRow = dt{0}.Rows(bm.Position)", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "enableFields(True)")
+        if ti.ProcBeforeEdit <> "" then
+            txtFile.WriteLine(space(offSet) + ti.ProcBeforeEdit)
+        end if
+        if ti.FirstControlName <> "" then
+            txtFile.WriteLine(space(offSet) + ti.FirstControlName + ".Focus()")
+        end if
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnFirstClicked() Handles mnu.btnFirstClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "bm.Position = 0")
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+    
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnLastClicked() Handles mnu.btnLastClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "bm.Position = dt{0}.Rows.Count - 1", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnNextClicked() Handles mnu.btnNextClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "bm.Position = bm.Position + 1")
+        txtFile.WriteLine(space(offSet) + "If bm.Position > dt{0}.Rows.Count - 1 Then", tbl.Name)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "bm.Position = dt{0}.Rows.Count - 1", tbl.Name)
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        txtFile.WriteLine(space(offSet) + "If bm.Position >= 0 Then", tbl.Name)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "currRow = dt{0}.Rows(bm.Position)", tbl.Name)
+            offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")        
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        offSet = offSet - 3            
+        txtFile.WriteLine(space(offSet) + "End Sub")
+    
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnPrevClicked() Handles mnu.btnPrevClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "bm.Position = bm.Position - 1")
+        txtFile.WriteLine(space(offSet) + "If bm.Position < 0 Then")
+        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "bm.Position = 0")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnSaveClicked() Handles mnu.btnSaveClicked")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "Dim newId As {0}", pkDbType)
+        txtFile.WriteLine(space(offSet) + "Dim err As String")
+        'txtFile.WriteLine(space(offSet) + "Dim blnControlsValidated As boolean")
+        txtFile.WriteLine(space(offSet) + "bm.EndCurrentEdit()")
+        
+'        txtFile.WriteLine(space(offSet) + "blnControlsValidated = ValidateChildren()", tbl.Name)
+'        txtFile.WriteLine(space(offSet) + "If not blnControlsValidated Then")
+'        offSet = offSet + 3
+'            txtFile.WriteLine(space(offSet) + "MessageBox.Show(" + """" + "Invalid Value Found"+ """"+")")
+'            txtFile.WriteLine(space(offSet) + "Exit Sub")
+'        offSet = offSet - 3            
+'        txtFile.WriteLine(space(offSet) + "End If")
+
+        txtFile.WriteLine(space(offSet) + "err = genValidate.gValidate{0}(currRow)", tbl.Name)
+        txtFile.WriteLine(space(offSet) + "If err.Length > 0 Then")
+        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "MessageBox.Show(err)")
+            txtFile.WriteLine(space(offSet) + "Exit Sub")
+        offSet = offSet - 3            
+        txtFile.WriteLine(space(offSet) + "End If")
+
+        if procBeforeSave <> "" then
+            txtFile.WriteLine(space(offSet) + "err = " + procBeforeSave)    
+            txtFile.WriteLine(space(offSet) + "If err.Length > 0 Then")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "MessageBox.Show(err)")
+                txtFile.WriteLine(space(offSet) + "Exit Sub")
+            offSet = offSet - 3            
+            txtFile.WriteLine(space(offSet) + "End If")
+        end if
+        txtFile.WriteLine(space(offSet) + "If mnu.lastCommand = "+""""+"A"+""""+" Or mnu.lastCommand = "+""""+"E"+""""+" Then")
+        offSet = offSet + 3
+'            txtFile.WriteLine(space(offSet) + "If mnu.lastCommand = "+""""+"E"+""""+" Then")
+'            offSet = offSet + 3
+'                txtFile.WriteLine(space(offSet) + "savedPosi = bm.Position")
+'            offSet = offSet - 3
+'            txtFile.WriteLine(space(offSet) + "End If")
+            if ti.ReplaceSave <> "" then
+                txtFile.WriteLine(space(offSet) + "newId = {0}", ti.ReplaceSave)
+            else
+                txtFile.WriteLine(space(offSet) + "newId = genModDB.insertUpdate{0}(currRow)", tbl.Name)
+            end if
+            
+            if hasDetail then
+                if ti.ReplaceDetailSave <> "" Then
+                    txtFile.WriteLine(space(offSet) + "{0}", ti.ReplaceDetailSave)
+                else
+                    txtFile.WriteLine(space(offSet) + "genModDB.Save{0}Details(grd{0}.DetailTable, newID)", sDetailTableName)
+                End if
+            end if
+            'txtFile.WriteLine(space(offSet) + "dt{0} = genModDB.getAll{0}()", tbl.name)
+            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = newId", pkName)
+            txtFile.WriteLine(space(offSet) + "dt{0}.acceptchanges", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "defineConstraints()")
+            if procAfterSave <> "" then
+                txtFile.WriteLine(space(offSet) + procAfterSave)    
+            end if            
+            txtFile.WriteLine(space(offSet) + "If mnu.lastCommand = "+""""+"A"+""""+" Then")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "prevRow = currRow")
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "End If")
+            
+            txtFile.WriteLine(space(offSet) + "mnu.SaveSuccessful()")
+'            txtFile.WriteLine(space(offSet) + "If mnu.lastCommand = "+""""+"E"+""""+" Then")
+'            offSet = offSet + 3
+'                txtFile.WriteLine(space(offSet) + "bm.Position = savedPosi")
+'            offSet = offSet - 3
+'            txtFile.WriteLine(space(offSet) + "End If")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+'        txtFile.WriteLine(space(offSet) + "If mnu.lastCommand = "+""""+"A"+""""+" Then")
+'        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "bm.Position = getPosition(newId)")
+            txtFile.WriteLine(space(offSet) + "currRow = dt{0}.Rows(bm.Position)", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+'        offSet = offSet - 3
+'        txtFile.WriteLine(space(offSet) + "End If")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "enableFields(False)")
+        txtFile.WriteLine(space(offSet) + "defineConstraints()")
+
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Function getPosition(ByVal {0} As {1}) As Integer", pkName, pkDbType)
+        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "Dim bindSrc As New BindingSource")
+            txtFile.WriteLine(space(offSet) + "dt{0}.DefaultView.RowFilter = " + """" + """", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "bindSrc.DataSource = dt{0}", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "Return bindSrc.Find(" + """" + "{0}" + """" + ", {0})", pkName)
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Function")
+
+        dim procAfterValidate as string
+        dim procBeforeValidate as String
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+            end try  
+            isLookup = False
+            procAfterValidate = ""
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("System")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Auto")  then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Lookup") then
+                    isLookup = True
+                    strLookupTable = ucase(fld.LookupTable)
+                    strDispColumn = ucase(fld.LookupDisplay)
+                    strValueColumn = ucase(fld.LookupValue)
+                end if
+            end if 
+            if not (fld.procAfterValidate is nothing) then
+                procAfterValidate = fld.procAfterValidate
+            else
+                procAfterValidate = ""
+            end if
+            If Not (fld.procBeforeValidate is nothing) then
+                procBeforeValidate = fld.procBeforeValidate
+            else
+                procBeforeValidate = ""
+            end if
+            if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then
+                generateComboBoxProcs(txtFile, offSet, currCol, fld)
+              
+            else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int                        
+                generateComboBoxProcs(txtFile, offSet, currCol, fld)
+            else if isLookup then 'This is a column which has lookup from some table
+                generateComboBoxProcs(txtFile, offSet, currCol, fld)
+            else  if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                txtFile.WriteLine(space(offSet) + "Private Sub txt{0}_Validated(sender As Object, e As EventArgs) Handles txt{0}.Validated, txt{0}.LostFocus", currCol.Name)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = txt{0}.text", currCol.Name)
+                    if procAfterValidate <> "" then
+                        txtFile.WriteLine(space(offSet) + procAfterValidate)
+                    end if
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub")    
+
+                if procBeforeValidate <> "" then
+                    txtFile.WriteLine(space(offSet) + "Private Sub txt{0}_Validating(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles txt{0}.Validating", currCol.Name)
+                    offSet = offSet + 3
+                        if procBeforeValidate <> "" then
+                            txtFile.WriteLine(space(offSet) + "e.cancel =" + procBeforeValidate)
+                        end if
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End Sub")                   
+                 end if
+            else if currCol.DataType = DBType.Boolean
+                txtFile.WriteLine(space(offSet) + "Private Sub chk{0}_CheckedChanged(sender As Object, e As EventArgs) Handles chk{0}.CheckedChanged", currCol.Name)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" +""""+") = chk{0}.Checked", currCol.Name)
+                    if procAfterValidate <> "" then
+                        txtFile.WriteLine(space(offSet) + procAfterValidate)
+                    end if
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub")             
+            else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal) and ucase(currCol.Name) <> "ID"  then
+                txtFile.WriteLine(space(offSet) + "Private Sub n{0}_Validated(sender As Object, e As EventArgs) Handles n{0}.Validated, n{0}.LostFocus", currCol.Name)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = iif(isNumeric(n{0}.text), n{0}.text, 0)", currCol.Name)
+                    if procAfterValidate <> "" then
+                        txtFile.WriteLine(space(offSet) + procAfterValidate)
+                    end if
+                    offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub") 
+            else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then   
+                txtFile.WriteLine(space(offSet) + "Private Sub d{0}_DateValueChanged(sender As Object, e As EventArgs) Handles d{0}.DateValueChanged, d{0}.LostFocus", currCol.Name)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "If Not frmIsLoading AndAlso Not (d{0}.DateValue is Nothing) Then", currCol.Name)
+                    offSet = offSet + 3                
+                    txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = d{0}.DateValue", currCol.Name)
+                    if procAfterValidate <> "" then
+                        txtFile.WriteLine(space(offSet) + procAfterValidate)
+                    end if
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End If")
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub")    
+                if procBeforeValidate <> "" then
+                    txtFile.WriteLine(space(offSet) + "Private Sub d{0}_Validating(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles d{0}.Validating", currCol.Name)
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "e.cancel =" + procBeforeValidate)
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End Sub")                   
+                 end if
+            else if currCol.DataType = DbType.Time then
+                txtFile.WriteLine(space(offSet) + "Private Sub t{0}_LostFocus(sender As Object, e As EventArgs) Handles  t{0}.LostFocus", currCol.Name)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "If Not frmIsLoading Then", currCol.Name)
+                    offSet = offSet + 3                
+                    txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = t{0}.Value.TimeOfDay", currCol.Name)
+                    if procAfterValidate <> "" then
+                        txtFile.WriteLine(space(offSet) + procAfterValidate)
+                    end if
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End If")
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub")    
+                if procBeforeValidate <> "" then
+                    txtFile.WriteLine(space(offSet) + "Private Sub t{0}_Validating(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles t{0}.Validating", currCol.Name)
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "e.cancel =" + procBeforeValidate)
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End Sub")                   
+                 end if
+            else
+                txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+            end if
+        next
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub bm_CurrentChanged(sender As Object, e As EventArgs) Handles bm.CurrentChanged")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "If bm.Position >= 0 Then")
+        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "If dt{0}.Rows(bm.Position).RowState <> DataRowState.Deleted Then", tbl.Name)
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+            offset = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End If")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End If")
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub putValuesToVariable()")
+        offSet = offSet + 3
+        txtFile.WriteLine(space(offSet) + "If bm.Position >= 0 Then")
+        offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "currRow = dt{0}.Rows(bm.Position)", tbl.Name)
+            if hasDetail then
+                txtFile.WriteLine(space(offSet) + "dt{0} = genModDb.get{0}Details(IIf(dt{1}(bm.Position).Item("+"""" + "{2}" + """" + ") Is DBNull.Value, {3},  dt{1}(bm.Position).Item("+""""+"{2}"+""""+")))", sDetailTableName, tbl.Name, pkName, emptyValue)                
+                if sDetailType = "Grid" then
+                    txtFile.WriteLine(space(offSet) + "frmDetail.{0}_Setup(grd{0}, dt{0}, dt{1})", sDetailTableName, tbl.Name)    
+                else
+                    txtFile.WriteLine(space(offSet) + "grd{0}.DetailTable = dt{0}", sDetailTableName)
+                end if
+            end if
+            for each currCol as columnSchema in tbl.Columns
+                    isLookup = False
+                    try
+                        fld = fi.Item(currcol.Name.ToUpper)
+                    catch ex as Exception
+                        console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+                    end try 
+                    if not (fld.FieldType is nothing) then
+                        if ucase(fld.FieldType) = ucase("System")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Auto")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Lookup") then
+                            isLookup = True
+                            strLookupTable = ucase(fld.LookupTable)
+                            strDispColumn = ucase(fld.LookupDisplay)
+                            strValueColumn = ucase(fld.LookupValue)
+                        end if
+                    end if             
+                    if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, Guid.Empty, dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)                    
+                    else if isLookup then
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, -1, dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)                                            
+                    else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int        
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, -1, dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)                    
+                    else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                        txtFile.WriteLine(space(offSet) + "txt{0}.Text = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, "+ """" + """" + ", dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)
+                    else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal)  and ucase(currCol.Name) <> "ID"  then
+                        txtFile.WriteLine(space(offSet) + "n{0}.Text = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, "+ """" + """" + ", dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)                    
+                    else if currCol.DataType = DBType.Boolean then
+                        txtFile.WriteLine(space(offSet) + "chk{0}.Checked = IIf(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value, false, dt{1}(bm.Position).Item("+""""+"{0}"+""""+"))", currCol.Name, tbl.Name)                        
+                    else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                        txtFile.WriteLine(space(OffSet) +   "If(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value) Then",    currCol.Name, tbl.Name)                  
+                        txtFile.WriteLine(space(OffSet) +   "d{0}.DateValue = cdate(SqlTypes.SqlDateTime.MinValue)", currCol.Name)  
+                        txtFile.WriteLine(space(OffSet) +   "else")
+                        txtFile.WriteLine(space(OffSet) +   "d{0}.DateValue = dt{1}(bm.Position).Item("+""""+"{0}"+""""+")", currCol.Name, tbl.Name)  
+                        txtFile.WriteLine(space(OffSet) +   "end if")
+                    else if currCol.DataType = DBType.Time then
+                        txtFile.WriteLine(space(OffSet) +   "If(dt{1}(bm.Position).Item("+"""" + "{0}" + """" + ") Is DBNull.Value) Then",    currCol.Name, tbl.Name)                  
+                        txtFile.WriteLine(space(OffSet) +   "t{0}.Value = Date.Now.Date", currCol.Name)  
+                        txtFile.WriteLine(space(OffSet) +   "else")
+                        txtFile.WriteLine(space(OffSet) +   "t{0}.Value = Date.Now.Date + dt{1}(bm.Position).Item("+""""+"{0}"+""""+")", currCol.Name, tbl.Name)  
+                        txtFile.WriteLine(space(OffSet) +   "end if")
+                    else
+                        txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+                    end if
+                next
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "Else")
+        offSet = offSet + 3
+            for each currCol as columnSchema in tbl.Columns
+                    isLookup = False
+                    try
+                        fld = fi.Item(currcol.Name.ToUpper)
+                    catch ex as Exception
+                        console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+                    end try                     
+                    if not (fld.FieldType is nothing) then
+                        if ucase(fld.FieldType) = ucase("System")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Auto")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Lookup") then
+                            isLookup = True
+                            strLookupTable = ucase(fld.LookupTable)
+                            strDispColumn = ucase(fld.LookupDisplay)
+                            strValueColumn = ucase(fld.LookupValue)
+                        end if                        
+                    end if             
+                    if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then   'Identity column of type GUID
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = Guid.Empty" , currCol.Name)         
+                    else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int        
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)         
+                    else if isLookup then
+                        txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)         
+                    else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                        txtFile.WriteLine(space(offSet) + "txt{0}.Text = " + """" + """", currCol.Name)
+                    else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal)  and ucase(currCol.Name) <> "ID"  then
+                        txtFile.WriteLine(space(offSet) + "n{0}.Text = " + """" + """", currCol.Name)
+                    else if currCol.DataType = DBType.Boolean then
+                        txtFile.WriteLine(space(offSet) + "chk{0}.Checked = false", currCol.Name)                                                
+                    else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                        txtFile.WriteLine(space(offSet) + "d{0}.DateValue = cdate(SqlTypes.SqlDateTime.MinValue)", currCol.Name) 
+                    else if currCol.DataType = DBType.Time then
+                        txtFile.WriteLine(space(offSet) + "t{0}.Value = Date.Now.Date", currCol.Name) 
+                    else
+                        txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+                    end if
+            next
+            If hasDetail then
+                txtFile.WriteLine(space(offSet) + "dt{0} = genModDB.get{0}Details({1})", sDetailTableName, emptyValue)
+                if sDetailType = "Grid" then
+                    txtFile.WriteLine(space(offSet) + "frmDetail.{0}_Setup(grd{0}, dt{0}, dt{1})", sDetailTableName, tbl.Name)    
+                else
+                    txtFile.WriteLine(space(offSet) + "grd{0}.DetailTable = dt{0}", sDetailTableName)
+                end if                
+            end if
+        offSet = offSet - 3        
+        txtFile.WriteLine(space(offSet) + "End If")
+        for each currCol as columnSchema in tbl.Columns
+            isLookup = False
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+            end try                 
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("System") then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Auto") then
+                    Continue For
+                end if
+                if ucase(fld.FieldType) = ucase("Lookup") then
+                    isLookup = True
+                    strLookupTable = ucase(fld.LookupTable)
+                    strDispColumn = ucase(fld.LookupDisplay)
+                    strValueColumn = ucase(fld.LookupValue)
+                end if                   
+            end if             
+            if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then
+                txtFile.WriteLine(space(offSet) + "cmb{0}.Refresh()", currCol.Name)
+            else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int                        
+                txtFile.WriteLine(space(offSet) + "cmb{0}.Refresh()", currCol.Name)
+            else if isLookup then
+                txtFile.WriteLine(space(offSet) + "cmb{0}.Refresh()", currCol.Name)
+            else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                txtFile.WriteLine(space(offSet) + "txt{0}.Refresh()", currCol.Name)
+            else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal)  and ucase(currCol.Name) <> "ID"  then
+                txtFile.WriteLine(space(offSet) + "n{0}.Refresh()", currCol.Name)
+            else if currCol.DataType = DBType.Boolean then
+                txtFile.WriteLine(space(offSet) + "chk{0}.Refresh()", currCol.Name)                   
+            else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                txtFile.WriteLine(space(offSet) + "d{0}.Refresh()", currCol.Name)  
+            else if currCol.DataType = DBType.Time then
+                txtFile.WriteLine(space(offSet) + "t{0}.Refresh()", currCol.Name) 
+            else
+                txtFile.WriteLine(space(offSet) + "'Not Used: {0} of type {1}", currCol.Name, currCol.DataType)
+            end if
+        next        
+        If hasDetail then
+            txtFile.WriteLine(space(offSet) + "grd{0}.Refresh()", sDetailTableName)
+        end if
+        
+        if procAfterValuesUpdate <> "" then
+            txtFile.WriteLine(space(offSet) + procAfterValuesUpdate)    
+        end if
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Private Sub putDefaultValues()")
+        offSet = offSet + 3
+            for each currCol as columnSchema in tbl.Columns
+                    isLookup = False
+                    try
+                        fld = fi.Item(currcol.Name.ToUpper)
+                    catch ex as Exception
+                        console.WriteLine("Field not found {0}, {1}, {2} Error: " + ex.ToString, SourceDatabase.Name, tbl.Name, currcol.Name)
+                    end try 
+                    if not (fld.FieldType is nothing) then
+                        if ucase(fld.FieldType) = ucase("System")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Auto")  then
+                            Continue For
+                        end if
+                        if ucase(fld.FieldType) = ucase("Lookup") then
+                            isLookup = True
+                            strLookupTable = ucase(fld.LookupTable)
+                            strDispColumn = ucase(fld.LookupDisplay)
+                            strValueColumn = ucase(fld.LookupValue)
+                        end if
+                    end if
+                    if fld.RepeatAfterAdd then
+                        if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then
+                            txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = Guid.Empty" , currCol.Name)         
+                        else if isLookup then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)         
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = " + "prevRow(" + """" + "{0}" + """" + ")" , currCol.Name)         
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.Refresh()", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int        
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = " + "prevRow(" + """" + "{0}" + """" + ")" , currCol.Name)         
+                                txtFile.WriteLine(space(offSet) + "cmb{0}.Refresh()", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")=" + """" + """", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")=" + "prevRow(" + """" + "{0}" + """" + ")", currCol.Name)
+                                txtFile.WriteLine(space(offSet) + "txt{0}.Refresh()", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal)  and ucase(currCol.Name) <> "ID"  then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")= 0.00", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")= "+ "prevRow(" + """" + "{0}" + """" + ")", currCol.Name)
+                            txtFile.WriteLine(space(offSet) + "n{0}.Refresh()", currCol.Name)
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if currCol.DataType = DBType.Boolean then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = False", currCol.Name)                        
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                                txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = " + "prevRow(" + """" + "{0}" + """" + ")", currCol.Name)
+                                txtFile.WriteLine(space(offSet) + "chk{0}.Refresh()", currCol.Name)                   
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = cdate(SqlTypes.SqlDateTime.MinValue)", currCol.Name)                                       
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = " + "prevRow(" + """" + "{0}" + """" + ")", currCol.Name)
+                            txtFile.WriteLine(space(offSet) + "d{0}.Refresh()", currCol.Name)  
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                        else if currCol.DataType = DBType.Time then
+                            txtFile.WriteLine(space(offSet) + "if prevRow is Nothing Then")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = cdate(SqlTypes.SqlDateTime.MinValue)", currCol.Name)                                       
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "Else")  
+                                offSet = offSet + 3
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = " + "prevRow(" + """" + "{0}" + """" + ")", currCol.Name)
+                            txtFile.WriteLine(space(offSet) + "t{0}.Refresh()", currCol.Name)  
+                                offSet = offSet - 3
+                            txtFile.WriteLine(space(offSet) + "End If")  
+                         else
+                            'Nothing
+                        end if
+                    else
+                        if currCol.DataType = DBType.Guid and currCol.Name.Length > 4 then
+                            txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = Guid.Empty" , currCol.Name)         
+                        else if isLookup then
+                            txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)         
+                        else if currCol.DataType = DBType.Int32 and currCol.Name.Length > 2 and ucase(right(currCol.Name,2)) = "ID" then   'Identity column of type Int        
+                            txtFile.WriteLine(space(offSet) + "cmb{0}.SelectedValue = DBNull.Value" , currCol.Name)         
+                        else if currCol.DataType = DBType.String or currCol.DataType = DBType.StringFixedLength or currCol.DataType = DBType.AnsiString or  currCol.DataType = DBType.AnsiStringFixedLength then
+                            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")=" + """" + """", currCol.Name)
+                        else if (currCol.DataType = DBType.Int32 or currCol.DataType = DbType.Int16 or currCol.DataType = DbType.Int64 or currCol.DataType = DbType.Decimal)  and ucase(currCol.Name) <> "ID"  then
+                            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ")= 0.00", currCol.Name)
+                        else if currCol.DataType = DBType.Boolean then
+                            txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = False", currCol.Name)                        
+                        else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = cdate(SqlTypes.SqlDateTime.MinValue)", currCol.Name)                                       
+                        else if currCol.DataType = DBType.Time then
+                            txtFile.WriteLine(space(OffSet) + "currRow(" + """" + "{0}" + """" + ") = Date.Now.Date.TimeOfDay", currCol.Name)                                       
+                        else
+                            'Nothing
+                        end if
+                        
+                    end if
+            next
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        dim txtSearchTable as String = ""
+        dim txtSearchDisplay as String = ""
+        dim txtSearchValue as String = ""
+        if Not (ti.SearchTable is nothing) then
+            txtSearchTable = ti.SearchTable
+        end if
+        if Not (ti.SearchDisplay is nothing) then
+            txtSearchDisplay = ti.SearchDisplay
+        end if
+        if Not (ti.SearchValue is nothing) then
+            txtSearchValue = ti.SearchValue
+        end if        
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnSearchClicked() Handles mnu.btnSearchClicked")
+        if ti.AdvSearch then
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "Dim frm As New frmAdvSearch()")
+            txtFile.WriteLine(space(offSet) + "Dim dlgResult As Windows.Forms.DialogResult")
+            if txtSearchTable <> "" then
+                txtFile.WriteLine(space(offSet) + "frm.SearchToken = " + """" + "{0}" + """", txtSearchTable)
+            else
+                txtFile.WriteLine(space(offSet) + "frm.SearchToken = " + """" + "{0}" + """", tbl.Name)
+            end if
+            txtFile.WriteLine(space(offSet) + "dlgResult = frm.ShowDialog()")
+            txtFile.WriteLine(space(offSet) + "If dlgResult = Windows.Forms.DialogResult.OK Then")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "bm.Position = getPosition(searchPosi)")
+                txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+            offset = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End If")
+            offSet = offSet - 3
+        else
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "Dim frm As New frmSearch()")
+                if txtSearchTable <> "" then
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.OriginalDataSource = dt{0}", txtSearchTable)
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.DisplayMember = "+"""" + "{0}"+ """", txtSearchDisplay)
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.ValueMember = "+""""+"{0}"+"""", txtSearchValue)
+                else
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.OriginalDataSource = dt{0}", tbl.Name)
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.DisplayMember = "+"""" + "Description"+ """")
+                    txtFile.WriteLine(space(offSet) + "frm.cmbSearch.ValueMember = "+""""+"{0}"+"""", tbl.PrimaryKey.MemberColumns(0).Name)
+                end if
+                txtFile.WriteLine(space(offSet) + "frm.ShowDialog()")
+                txtFile.WriteLine(space(offSet) + "bm.Position = getPosition(searchPosi)")
+                txtFile.WriteLine(space(offSet) + "putValuesToVariable()")
+            offSet = offSet - 3
+         end if
+         txtFile.WriteLine(space(offSet) + "End Sub")        
+        
+
+        if ti.AllowFilter then
+            txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnFilterClicked() Handles mnu.btnFilterClicked")            
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "Dim frm As New frmAdvSearch()")            
+            txtFile.WriteLine(space(offSet) + "Dim dlgResult As Windows.Forms.DialogResult")
+            txtFile.WriteLine(space(offSet) + "If isFilterOn Then")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "isFilterOn = False")                
+                txtFile.WriteLine(space(offSet) + "mnu.btnFilterEnable(False)")   
+                if ti.UseYrFilter then
+                    txtFile.WriteLine(space(offSet) + "dt{0} = genModDB.getAllYr{0}", tbl.Name)                                    
+                else
+                    txtFile.WriteLine(space(offSet) + "dt{0} = genModDB.getAll{0}", tbl.Name)                                    
+                end if
+                txtFile.WriteLine(space(offSet) + "bm = Me.BindingContext(dt{0})", tbl.Name)  
+                txtFile.WriteLine(space(offSet) + "bm.Position = 0")                
+                txtFile.WriteLine(space(offSet) + "putValuesToVariable()")                
+            offSet = offSet - 3
+            txtFile.WriteLine(space(offSet) + "Else")                
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "frm.CallMode = CallType.callFilter")                
+                txtFile.WriteLine(space(offSet) + "frm.CalledFrom = Me")                
+                txtFile.WriteLine(space(offSet) + "frm.SearchToken = " + """" + "{0}" + """", tbl.Name)                
+                txtFile.WriteLine(space(offSet) + "dlgResult = frm.ShowDialog()")                    
+                txtFile.WriteLine(space(offSet) + "If dlgResult = Windows.Forms.DialogResult.OK Then")
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "mnu.btnFilterEnable(True)")
+                    txtFile.WriteLine(space(offSet) + "isFilterOn = True")
+                    txtFile.WriteLine(space(offSet) + "tblFilterIds = dtFilterIds.Copy()")
+                    txtFile.WriteLine(space(offSet) + "dtFilterIds = Nothing")
+                    txtFile.WriteLine(space(offSet) + "For Each dr As DataRow In dt{0}.Rows", tbl.Name)
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "If tblFilterIds.Select(" + """" + "Id = " + """" + " + dr(" + """" + "ID" + """" + ").ToString).Count = 0 Then")    
+                        offSet = offSet + 3
+                            txtFile.WriteLine(space(offSet) + "dr.Delete()")    
+                        offSet = offSet - 3
+                        txtFile.WriteLine(space(offSet) + "End If")    
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "Next")    
+                    txtFile.WriteLine(space(offSet) + "dt{0}.AcceptChanges()", tbl.Name)        
+                    txtFile.WriteLine(space(offSet) + "bm = Me.BindingContext(dt{0})", tbl.Name)        
+                    txtFile.WriteLine(space(offSet) + "bm.Position = 0")        
+                    txtFile.WriteLine(space(offSet) + "putValuesToVariable()")        
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End If")        
+            offSet = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End If")        
+            offSet = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End Sub")        
+         end if
+
+
+         
+        txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnPrintClicked() Handles mnu.btnPrintClicked")
+        offSet = offSet + 3
+            if ti.ReportCode <> "" then
+                txtFile.WriteLine(space(offSet) + ti.ReportCode)
+            Else
+                if ti.ReportForm <> "" then
+                    txtFile.WriteLine(space(offSet) + "Dim cryRpt As New {0}", ti.ReportForm)
+                else
+                    txtFile.WriteLine(space(offSet) + "Dim cryRpt As New FrmReportViewer")
+                end if
+                txtFile.WriteLine(space(offSet) + "cryRpt.reportName = "+ """" + "rpt{0}.rpt" + """", tbl.Name)
+                txtFile.WriteLine(space(offSet) + "ShowNewForm(cryRpt, " + """" + "{0}" + """" + ", True)", tbl.name)
+            End If
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+
+        offSet = offSet - 3
+        txtFile.WriteLine(space(offSet) + "End Class")
+        txtFile.Close()
+Next
+%>
+
+'All work done !!
+
+
+<script runat="template">
+' My functions here.
+private templateOutputPath as string = ""
+	<Editor(GetType(System.Windows.Forms.Design.FolderNameEditor), GetType(System.Drawing.Design.UITypeEditor)), _
+	Category("01. Getting Started - Required"), Description("Required - The directory to which every output file is generated.")> _
+public property OutputPath as string
+   get 
+		return templateOutputPath
+		end get
+	set(val as string)
+		templateOutputPath = val
+		end set
+end property
+public sub generateComboBox(txtFile as system.IO.StreamWriter, offSet as integer, currCol as ColumnSchema, strLookupTable as string, strDispColumn as String, strValueColumn as String, fld as MetaData.FieldInfo)
+                txtFile.WriteLine((space(offSet) + "cmb{0}.OriginalDataSource = dt{1}.copy"), currCol.Name, strLookupTable)
+                txtFile.WriteLine((space(offSet) + "cmb{0}.DisplayMember = " + """" + "{1}" +""""), currCol.Name, strDispColumn)
+                txtFile.WriteLine((space(offSet) + "cmb{0}.ValueMember = " + """" + "{1}" +""""), currCol.Name, strValueColumn)
+                'txtFile.WriteLine((space(offSet) + "cmb{0}.AutoCompleteMode = AutoCompleteMode.SuggestAppend"), currCol.Name)
+                txtFile.WriteLine((space(offSet) + "cmb{0}.DropDownStyle = ComboBoxStyle.DropDownList"), currCol.Name)
+                if fld.LookUpDispCode then
+                    txtFile.WriteLine((space(offSet) + "cmb{0}.DispCode = True"), currCol.Name)
+                end if
+                'txtFile.WriteLine((space(offSet) + "cmb{0}.DropDownStyle = ComboBoxStyle.Dropdown"), currCol.Name)
+end sub  
+public sub generateComboBoxProcs(txtFile as System.IO.StreamWriter, offSet as integer, currCol as ColumnSchema, fld as MetaData.FieldInfo)
+               txtFile.WriteLine(space(offSet) + "Private Sub cmb{0}_Validated(sender As Object, e As EventArgs) Handles cmb{0}.Validated, cmb{0}.LostFocus, cmb{0}.ValueChanged", currCol.Name)
+               offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "If frmIsLoading Then")
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "Exit Sub")
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End If")
+                offSet = offSet - 3                
+                txtFile.WriteLine(space(offSet) + "If  (cmb{0}.SelectedValue Is Nothing) Then", currCol.Name)
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = DBNull.Value", currCol.Name)
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "Else")                      
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "currRow(" + """" + "{0}" + """" + ") = cmb{0}.SelectedValue", currCol.Name)
+                        if fld.procAfterValidate <> "" then
+                            txtFile.WriteLine(space(offSet) + fld.procAfterValidate)
+                        end if
+                    offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End If")                
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End Sub") 
+                
+                if fld.procBeforeValidate <> "" then
+                    txtFile.WriteLine(space(offSet) + "Private Sub cmb{0}_Validating(sender As Object, e As System.ComponentModel.CancelEventArgs) Handles cmb{0}.Validating", currCol.Name)
+                    offSet = offSet + 3
+                        txtFile.WriteLine(space(offSet) + "If frmIsLoading Then")
+                        offSet = offSet + 3
+                            txtFile.WriteLine(space(offSet) + "Exit Sub")
+                        offSet = offSet - 3
+                        txtFile.WriteLine(space(offSet) + "End If")
+                    offSet = offSet - 3
+
+                    offSet = offSet + 3                    
+
+                            if fld.procBeforeValidate <> "" then
+                                txtFile.WriteLine(space(offSet) + "e.cancel =" + fld.procBeforeValidate)
+                            end if
+                    offSet = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End Sub")                 
+                 end if
+end sub
+</script>

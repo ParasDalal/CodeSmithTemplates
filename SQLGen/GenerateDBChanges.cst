@@ -1,0 +1,125 @@
+﻿<%------------------------------------------------------------------------------------------
+* Author: Paras Dalal
+* Description: Generate table column adjustment script (for added columns to existing tables)
+------------------------------------------------------------------------------------------%>
+<%@ CodeTemplate Language="VB" TargetLanguage="SQL" Src="" Inherits="" Debug="True" Description="Generate the Database change script" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="01. Getting Started - Required" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%--@ Property Name="OutputFilePath" Type="System.String" Default="" Optional="False" Category="01. Getting Started - Required" Description="Path for the output file." --%>
+<%--@ Property Name="SampleBooleanProperty" Type="System.Boolean" Default="True" Optional="False" Category="Booleans" Description="This is a sample boolean property." --%>
+<%@ Assembly Name="System.Data" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Import Namespace="System.IO" %>
+<%@ Map Name="DbTypeVB" Src="DbType-VB.csmap" %>
+<%  
+    dim offSet as integer = 0
+    Dim txtFile As new system.IO.StreamWriter(OutputPath + "\zDBUpdates.sql")   'Trying to keep this file as last file in the folder.
+    For each tbl as tableschema in SourceDatabase.Tables
+        if not tbl.HasPrimaryKey  then
+            continue for
+        end if
+        dim ti as MetaData.TableInfo
+        ti = MetaData.TableExtension.getTableInfo(sourcedatabase.Name, tbl.Name)
+        if Not (ti.TableType is nothing) then
+            if ucase(ti.TableType) = UCase("System") then
+                continue For 
+            end if
+        end if
+
+        dim keyColRow as Integer = 0
+        dim col as ColumnSchema
+        dim i as Integer
+'        txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.sysobjects where name = '{0}' and xtype = 'U')", tbl.Name)
+'        txtFile.WriteLine(space(offSet) + "BEGIN")
+'        offSet = offSet + 3
+'            txtFile.WriteLine(space(offSet) + "CREATE TABLE [dbo].[{0}](", tbl.Name)
+'            for each col in tbl.Columns
+'                if col.IsPrimaryKeyMember then
+'                    txtFile.WriteLine(space(offSet) + "[{0}] {1}", col.Name, col.NativeType)
+'                end if
+'            next
+'            txtFile.WriteLine(space(offSet) + ")")
+'        offSet = offSet - 3
+'        txtFile.WriteLine(space(offSet) + "END")
+        
+        for each col in tbl.Columns
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = '{0}' and o.name = '{1}' and o.xtype = 'U')", col.Name, tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Write(space(offSet) + "   add [{0}] {1}", col.Name, col.NativeType)
+            if InStr("decimal|varchar|nvarchar|numeric", col.NativeType) > 0  then
+                if col.size > 0 and col.precision > 0 then
+                    txtFile.Writeline(space(offSet) + "({0}, {1})", col.precision, col.Scale)
+                else if col.size > 0 then
+                    txtFile.Writeline(space(offSet) + "({0})", col.size)
+                end if
+            end if
+            txtFile.Writeline("")
+        next
+        if ti.EnableAudit then
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'CreatedBy' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add CreatedBy Int NULL")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'CreatedTime' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add CreatedTime Datetime NULL")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'ModifiedBy' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add ModifiedBy Int NULL")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'ModifiedTime' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add ModifiedTime Datetime NULL")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'Deleted' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add [Deleted] bit NULL Default (0)")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'DeletedBy' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add DeletedBy Int NULL")
+
+            txtFile.WriteLine(space(offSet) + "if not exists(select * from sys.syscolumns c join sys.sysobjects o on c.id = o.id where c.name = 'DeletedTime' and o.name = '{0}' and o.xtype = 'U')", tbl.Name)
+            txtFile.WriteLine(space(offSet) + "   alter table [{0}]", tbl.Name)
+            txtFile.Writeline(space(offSet) + "   add DeletedTime Datetime NULL")            
+        end if
+	
+		
+'		)
+'		 CONSTRAINT [PK_Acc] PRIMARY KEY CLUSTERED 
+'		(
+'			[Id] ASC
+'		)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+'		) ON [PRIMARY]
+'
+'		GO
+        
+Next
+    txtFile.Close()
+%>
+
+'All work done !!
+
+
+<script runat="template">
+' My functions here.
+private templateOutputPath as string = ""
+	<Editor(GetType(System.Windows.Forms.Design.FolderNameEditor), GetType(System.Drawing.Design.UITypeEditor)), _
+	Category("01. Getting Started - Required"), Description("Required - The directory to which every output file is generated.")> _
+public property OutputPath as string
+   get 
+		return templateOutputPath
+		end get
+	set(val as string)
+		templateOutputPath = val
+		end set
+end property
+
+
+
+</script>

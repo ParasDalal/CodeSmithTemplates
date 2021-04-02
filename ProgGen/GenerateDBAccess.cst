@@ -1,0 +1,327 @@
+﻿<%------------------------------------------------------------------------------------------
+* Author: Paras Dalal
+* Description: Generate base structure for the data entry win-forms
+------------------------------------------------------------------------------------------%>
+<%@ CodeTemplate Language="VB" TargetLanguage="VB" Src="" Inherits="" Debug="True" Description="Generate common database access code for all tables" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+
+<%@ Map Name="DbTypeVB" Src="DbType-VB.csmap" %>
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="01. Getting Started - Required" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%--@ Property Name="OutputFilePath" Type="System.String" Default="" Optional="False" Category="01. Getting Started - Required" Description="Path for the output file." --%>
+<%--@ Property Name="SampleBooleanProperty" Type="System.Boolean" Default="True" Optional="False" Category="Booleans" Description="This is a sample boolean property." --%>
+<%@ Assembly Name="System.Data" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Import Namespace="System.IO" %>
+<% 
+    dim offSet as integer = 0
+    Dim txtFile As new system.IO.StreamWriter(OutputPath + "\genModDB.vb")
+    txtFile.WriteLine("Imports System.Data.SqlClient")
+    txtFile.WriteLine("Module genModDB")
+    offSet = offSet + 3
+    txtFile.WriteLine(space(offSet) + "Dim dbConn As SqlClient.SqlConnection = Nothing")
+    txtFile.WriteLine(space(offSet) + "Dim dbCommand As SqlClient.SqlCommand")
+    txtFile.WriteLine(space(offSet) + "Dim ds As DataSet")
+    txtFile.WriteLine(space(offSet) + "Dim da As SqlClient.SqlDataAdapter")
+    txtFile.WriteLine(space(offSet) + "Dim oValidations As libUtil.clsValidations")
+    txtFile.WriteLine(space(offSet) + "Dim oSettings As libUtil.clsSettings")
+    txtFile.WriteLine(space(offSet) + "Dim sqlTran As SqlTransaction = Nothing")
+    dim pkName as String
+    dim pkDbType as String
+    dim emptyValue as String
+    dim ti as MetaData.TableInfo
+    dim fi as New Collection
+    dim fld as metadata.FieldInfo
+    For each tbl as tableschema in SourceDatabase.Tables
+        if not tbl.HasPrimaryKey  then
+            continue for
+        end if
+        try
+            ti = MetaData.TableExtension.getTableInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Error getting table info for {0} :", ex.ToString, tbl.Name)
+        end try
+        try
+            fi = MetaData.FieldExtension.getFieldInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get field information for : {0} Error:" + ex.ToString, tbl.Name)
+        end try
+
+        pkName = tbl.PrimaryKey.MemberColumns(0).Name
+        pkDbType = tbl.PrimaryKey.MemberColumns(0).DataType.ToString
+        select case tbl.PrimaryKey.MemberColumns(0).DataType
+            case dbtype.Guid
+                emptyValue = "GUID.Empty"
+            case dbtype.Int16, dbtype.Int32, dbtype.Int64
+                emptyValue = "0"
+            case else
+                emptyValue = "0"
+        end select
+        txtFile.WriteLine(space(offSet) + "Public Function getAll{0} As DataTable", tbl.Name)
+        offSet = OffSet + 3
+        txtFile.WriteLine(space(offSet) + "ds = New DataSet")
+        txtFile.WriteLine(space(offSet) + "dbConn = modDB.getConnection()")
+        txtFile.WriteLine(space(offSet) + "dbCommand = modDB.prepareCommand("+""""+"{0}"+""""+", dbConn)", GetSelectAllProcedureName("usp_", tbl.Name))
+        txtFile.WriteLine(space(offSet) + "da = New SqlClient.SqlDataAdapter(dbCommand)")
+        txtFile.WriteLine(space(offSet) + "da.Fill(ds)")
+        txtFile.WriteLine(space(offSet) + "getAll{0} = ds.Tables(0)", tbl.Name)
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Function")
+
+        if ti.UseYrFilter then
+            txtFile.WriteLine(space(offSet) + "Public Function getAllYr{0} As DataTable", tbl.Name)
+            offSet = OffSet + 3
+            txtFile.WriteLine(space(offSet) + "ds = New DataSet")
+            txtFile.WriteLine(space(offSet) + "dbConn = modDB.getConnection()")
+            txtFile.WriteLine(space(offSet) + "dbCommand = modDB.prepareCommand("+""""+"{0}"+""""+", dbConn)", GetSelectYrProcedureName("usp_", tbl.Name))
+            txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@StartDt" + """" + ", dSystemStartDate)")
+            txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@EndDt" + """" + ", dSystemEndDate)")
+            txtFile.WriteLine(space(offSet) + "da = New SqlClient.SqlDataAdapter(dbCommand)")
+            txtFile.WriteLine(space(offSet) + "da.Fill(ds)")
+            txtFile.WriteLine(space(offSet) + "getAllYr{0} = ds.Tables(0)", tbl.Name)
+            offSet = OffSet - 3
+            txtFile.WriteLine(space(offSet) + "End Function")
+        end if
+        'txtFile.WriteLine(space(offSet) + "Public Sub delete{0}(ByVal Id As Guid)", tbl.Name)
+        txtFile.Write(space(offSet) + "Public Sub delete{0}(", tbl.Name)
+        txtFile.Write(GetKeyParameters(tbl.PrimaryKey.MemberColumns))
+        txtFile.WriteLine(")")
+        offSet = OffSet + 3
+            txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+            txtFile.WriteLine(space(offSet) + "dbCommand = prepareCommand("+""""+"usp_Delete{0}"+""""+", dbConn, sqlTran)", tbl.Name)
+            for each pk as ColumnSchema in tbl.PrimaryKey.MemberColumns
+                txtFile.WriteLine(space(offSet) + String.Format("dbCommand.Parameters.AddWithValue("+""""+"@{0}"+""""+", m{0})", pk.Name))
+            next
+            if ti.EnableAudit then
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("+""""+"@DeletedBy"+""""+" , CurrUserId)")
+            end if
+
+            txtFile.WriteLine(space(offSet) + "dbCommand.ExecuteNonQuery()")
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Sub")
+        
+        txtFile.WriteLine(space(offSet) + "Public Function insertUpdate{0}(ByVal dr As DataRow, Optional dbConn As SqlConnection = Nothing, Optional sqlTran As SqlTransaction = Nothing, Optional SaveMode as string = nothing) As {1}", tbl.Name, pkDbType)
+        offSet = OffSet + 3
+        'txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+        txtFile.WriteLine(space(offSet) + "dbCommand = modDB.prepareCommand("+""""+"usp_InsertUpdate{0}"+""""+", dbConn, sqlTran)", tbl.Name)
+        dim isGUIDThere as boolean = false
+
+        for each currCol as columnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1} Error: " + ex.ToString, tbl.Name, currcol.Name)
+            end try 
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) = ucase("IgnoreSave") then
+                    Continue For
+                end if
+                if UCase(fld.FieldType) = UCase("Auto") then
+                    Continue For
+                end if
+            end if
+
+            if currCol.IsPrimaryKeyMember then
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("+""""+"@{0}"+""""+", iif(dr("+""""+"{0}"+""""+") is DbNull.Value, {1}, dr("+""""+"{0}"+""""+")))", currCol.Name, emptyValue)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters("+""""+"@{0}"+""""+").Direction = ParameterDirection.InputOutput", currCol.Name)
+                isGUIDThere = true
+            else
+                if ((currCol.DataType = DbType.Date) or (currCol.DataType = DbType.DateTime) or (currCol.DataType = DbType.DateTime2)) then
+                    txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.Add("+""""+"@{0}"+""""+ ", SQLDBType.{1})", currCol.Name, currCol.DataType.ToString)
+                    txtFile.WriteLine(space(OffSet) + "If (dr("+""""+"{0}"+""""+") Is DBNull.Value) Then",    currCol.Name)
+                    txtFile.WriteLine(space(OffSet) + "dbCommand.Parameters("+""""+"@{0}"+""""+").Value = DBNull.Value", currCol.Name)
+                    txtFile.WriteLine(space(OffSet) + "else if (dr("+""""+"{0}"+""""+") = cdate(SqlTypes.SqlDateTime.MinValue)) Then",    currCol.Name)
+                    txtFile.WriteLine(space(OffSet) + "dbCommand.Parameters("+""""+"@{0}"+""""+").Value = DBNull.Value", currCol.Name)
+                    txtFile.WriteLine(space(OffSet) + "else")
+                    txtFile.WriteLine(space(OffSet) + "dbCommand.Parameters("+""""+"@{0}"+""""+").Value = dr("+""""+"{0}"+""""+")", currCol.Name)  
+                    txtFile.WriteLine(space(OffSet) + "end if")
+                    'txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("+""""+"@{0}"+""""+", iif(dr("+""""+"{0}"+""""+") = CDate(SqlTypes.SqlDateTime.MinValue), DBNull.Value, dr("+""""+"{0}"+""""+")))", currCol.Name)
+                else
+                    txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("+""""+"@{0}"+""""+", iif(dr("+""""+"{0}"+""""+") is DbNull.Value, DBNull.Value, dr("+""""+"{0}"+""""+")))", currCol.Name)
+                end if
+            end if
+        next
+        
+        if ti.EnableAudit then
+            txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("+""""+"@CurrUser"+""""+" , CurrUserId)")
+        end if
+        'txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.Add("@GUID", SqlDbType.UniqueIdentifier)")
+        'txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue("@Description", dr("Description"))")
+        
+        txtFile.WriteLine(space(offSet) + "dbCommand.ExecuteNonQuery()")
+        'txtFile.WriteLine(space(offSet) + "Return dbCommand.Parameters("@GUID").Value")
+        if isGUIDThere then
+            txtFile.WriteLine(space(offSet) + "insertUpdate{0} = dbCommand.Parameters("+""""+"@{1}"+""""+").Value", tbl.Name, pkName)
+        end if
+        offSet = OffSet - 3
+        txtFile.WriteLine(space(offSet) + "End Function")
+
+
+        for each currCol as ColumnSchema in tbl.Columns
+            try
+                fld = fi.Item(currcol.Name.ToUpper)
+            catch ex as Exception
+                console.WriteLine("Field not found {0}, {1} Error: " + ex.ToString, tbl.Name, currcol.Name)
+            end try 
+
+            if  ((fld.isUnique = True)  or (fld.isRequired  = True)) then
+                txtFile.WriteLine(space(offSet) + "Function v{1}{0}(" +  "{2}" + " As " + "{3}" + ", {0} As String) As String", currCol.Name, tbl.Name, pkName, pkDbType)
+                offSet = OffSet + 3
+                txtFile.WriteLine(space(offSet) + "Dim strErr As String = " + """" + """" )
+                txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+                txtFile.WriteLine(space(offSet) + "dbCommand = prepareCommand(" + """" + "v{1}{0}" + """" + ", dbConn)", currCOl.Name, tbl.Name)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@{0}" + """" + ", {0})", pkName)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@{0}" + """" + ", {0})", currCol.Name)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@ErrMsg" + """" + ", strErr)")
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters(" + """" + "@ErrMsg" + """" + ").Direction = ParameterDirection.Output")
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters(" + """" + "@ErrMsg" + """" + ").Size = 200")
+                txtFile.WriteLine(space(offSet) + "dbCommand.ExecuteNonQuery()")
+                txtFile.WriteLine(space(offSet) + "Return dbCommand.Parameters("+ """" + "@ErrMsg" + """" + ").Value")
+                offSet = OffSet - 3
+                txtFile.WriteLine(space(offSet) + "End Function")
+            end if
+        next
+    Next
+    dim sDetailTableName as String
+    dim DetailTable as TableSchema
+    dim dpkName as String
+    dim dpkDbType as String
+    dim dpkEmptyValue as String
+    For each tbl as tableschema in SourceDatabase.Tables
+        try
+            ti = MetaData.TableExtension.getTableInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Error getting table info for {0} : " + ex.ToString, tbl.Name )
+        end try
+        try
+            fi = MetaData.FieldExtension.getFieldInfo(Sourcedatabase.Name, tbl.Name)
+        catch ex as Exception
+            console.WriteLine("Cannot get field information for : {0} Error:" + ex.ToString, tbl.Name)
+        end try
+       
+        
+        if Not (ti.detailtable is nothing) then
+            sDetailTableName = ti.DetailTable
+            'Find the detail table from the schema
+            for each dt as TableSchema in SourceDatabase.Tables
+                if dt.Name = sDetailTableName then
+                    DetailTable = dt
+                end if
+            next
+            dpkName = DetailTable.PrimaryKey.MemberColumns(0).Name
+            dpkDbType = DetailTable.PrimaryKey.MemberColumns(0).DataType.ToString
+            select case DetailTable.PrimaryKey.MemberColumns(0).DataType
+                case dbtype.Guid
+                    dpkEmptyValue = "GUID.Empty"
+                case dbtype.Int16, dbtype.Int32, dbtype.Int64
+                    dpkEmptyValue = "0"
+                case else
+                    dpkEmptyValue = "0"
+            end select
+            txtFile.WriteLine(space(offSet) + "Public Sub Delete{0}Details({1}{2} As {3})", sDetailTableName, tbl.Name, dpkName, dpkDbType)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+            txtFile.WriteLine(space(offSet) + "dbCommand = prepareCommand(" + """" + "d{0}For{1}" + """" + ", dbConn, sqlTran)", sDetailTableName, tbl.Name)
+            txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@{0}{1}" + """" + ", {0}{1})", tbl.Name, dpkName)
+            txtFile.WriteLine(space(offSet) + "dbCommand.ExecuteNonQuery()")
+            offSet = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End Sub")
+            
+            txtFile.WriteLine(space(offSet) + "Sub Save{0}Details(dt{0} As DataTable, {1} As {2})", sDetailTableName, pkName, pkDbType)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+            txtFile.WriteLine(space(offSet) + "sqlTran = dbConn.BeginTransaction()")
+            txtFile.WriteLine(space(offSet) + "Try")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + "dbCommand = prepareCommand(" + """" + "d{0}For{1}" + """" + ", dbConn, sqlTran)", sDetailTableName, tbl.Name)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@{0}{1}" + """" + ", {1})", tbl.Name, pkName)
+                txtFile.WriteLine(space(offSet) + "dbCommand.Transaction = sqlTran")
+                txtFile.WriteLine(space(offSet) + "dbCommand.ExecuteNonQuery()")
+                txtFile.WriteLine(space(offSet) + "For Each dr As DataRow In dt{0}.Rows", sDetailTableName)
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "If dr.RowState <> DataRowState.Deleted Then")
+                    offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + "dr(" + """" + "{0}{1}" + """" + ") = {1}", tbl.Name, pkName)
+                    txtFile.WriteLine(space(offSet) + "genModDB.insertUpdate{0}(dr, dbConn, sqlTran)", sDetailTableName)
+                    offset = offSet - 3
+                    txtFile.WriteLine(space(offSet) + "End If")
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "Next")
+                offSet = offSet - 3
+            offSet = offSet - 3        
+            txtFile.WriteLine(space(offSet) + "catch Ex as exception")
+            offSet = offSet + 3        
+                txtFile.WriteLine(space(offSet) + "messageBox.Show(" + """" + "Data not saved:" + """" + "+ vbCrLF + ex.Tostring, "+"""" + "DATA NOT SAVED" + """" + ", MessageBoxButtons.OK)")
+                txtFile.WriteLine(space(offSet) + "sqlTran.Rollback")
+                txtFile.WriteLine(space(offSet) + "Exit Sub")
+            offSet = offSet - 3        
+            txtFile.WriteLine(space(offSet) + "End Try")
+            txtFile.WriteLine(space(offSet) + "sqlTran.Commit()")
+            txtFile.WriteLine(space(offSet) + "End Sub")
+            txtFile.WriteLine(space(offSet) + "Function get{0}Details({1} As {2}) As DataTable", sDetailTableName, pkName, pkDbType)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "ds = New DataSet")
+            txtFile.WriteLine(space(offSet) + "dbConn = getConnection()")
+            txtFile.WriteLine(space(offSet) + "dbCommand = prepareCommand(" + """" + "s{0}For{1}" + """" + ", dbConn)", sDetailTableName, tbl.Name)
+            txtFile.WriteLine(space(offSet) + "dbCommand.Parameters.AddWithValue(" + """" + "@{0}{1}" + """" + ", {1})", tbl.Name, pkName)
+            txtFile.WriteLine(space(offSet) + "da = New SqlClient.SqlDataAdapter(dbCommand)")
+            txtFile.WriteLine(space(offSet) + "da.Fill(ds)")
+            txtFile.WriteLine(space(offSet) + "get{0}Details = ds.Tables(0)", sDetailTableName)
+            offSet = offSet - 3
+            txtFile.WriteLine(space(offSet) + "End Function")
+        end if
+    Next
+    offSet = offSet - 3
+    txtFile.WriteLine(space(offSet) + "End Module")
+   txtFile.Close()
+%>
+'All Done !!
+
+<script runat="template">
+' My functions here.
+private templateOutputPath as string = ""
+	<Editor(GetType(System.Windows.Forms.Design.FolderNameEditor), GetType(System.Drawing.Design.UITypeEditor)), _
+	Category("01. Getting Started - Required"), Description("Required - The directory to which every output file is generated.")> _
+public property OutputPath as string
+   get 
+		return templateOutputPath
+		end get
+	set(val as string)
+		templateOutputPath = val
+		end set
+end property
+public function GetSelectAllProcedureName(TablePrefix as string, entityName as string) as string
+    return String.Format("{0}Select{1}All", TablePrefix, GetEntityName(TablePrefix, entityName, true))
+End Function
+
+public function GetSelectYrProcedureName(TablePrefix as string, entityName as string) as string
+    return String.Format("{0}Select{1}Yr", TablePrefix, GetEntityName(TablePrefix, entityName, true))
+End Function
+
+Public Function GetEntityName(TablePrefix as string, entityName as string, plural As Boolean) As String
+	If entityName.StartsWith(TablePrefix) Then
+		entityName = entityName.Substring(TablePrefix.Length)
+	End If
+
+	If plural Then
+		entityName = StringUtil.ToPlural(entityName)
+	Else
+		entityName = StringUtil.ToSingular(entityName)
+	End If
+
+	Return entityName
+End Function
+
+public function GetKeyParameters(pkColl as ColumnSchemaCollection) as String
+    dim retStr as String = ""
+    dim dbType as string 
+    for each pk as ColumnSchema in pkColl
+        dbType = DBTypeVB(pk.DataType.ToString)
+        retStr = retStr + IIf(retStr.Length > 0, ",", "")
+        retStr = retStr + String.Format("ByVal m{0} as {1}", pk.Name,  dbType)
+    next
+    return retStr
+end function    
+</script>

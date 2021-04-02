@@ -1,0 +1,203 @@
+﻿<%-- 
+Name: CreateAuditTablesAndTriggers
+Author: Paras Dalal
+Description: Create Audit tables. Use one audit table per source table. Only log inserted data so that text and ntext fields will work. 
+--%>
+
+<%@ CodeTemplate Language="VB" TargetLanguage="T-SQL" Src="" Inherits="" Debug="False" Description="Template description here." %>
+<%@ Property Name="SourceTables" Type="SchemaExplorer.TableSchemaCollection" Optional="False" Category="Context" Description="Select a set of tables." %>
+
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="Context" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%@ Property Name="SourceOwner" Type="System.String" Category="Database" Description="Owner of source tables." Default="dbo" %>
+
+<%@ Property Name="AuditDatabase" Type="SchemaExplorer.DatabaseSchema" Optional="False" Category="Context" Description="Database that the tables views, and stored procedures should be based on. IMPORTANT!!! If SourceTables and SourceViews are left blank, the Entire Database will then be generated." %>
+<%@ Property Name="AuditOwner" Type="System.String" Category="Database" Description="Owner of audit tables." Default="dbo" %>
+<%@ Property Name="OutputPath" Type="System.String" Optional="False" Category="Context" Description="Output Path" %>
+
+<%@ Import Namespace="System.Text" %>
+<%@ Import Namespace="System.IO" %>
+<%@ Assembly Name="System.Data" %>
+<%@ Import Namespace="System.Data" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="SchemaExplorer" %>
+<%@ Assembly Name="CodeSmith.BaseTemplates" %>
+<%@ Import Namespace="CodeSmith.BaseTemplates" %>
+<%@ Assembly  Path="D:\SoftProjects\MetaData\MetaData\bin\" Name="MetaData" %>
+<%@ Import Namespace="MetaData" %>
+
+<%  
+'dim objTable as SchemaExplorer.TableSchema
+'dim objColumn as schemaexplorer.ColumnSchema
+dim bFirst as boolean
+dim sColumn as string
+dim sColumns as string
+dim sTable as string
+dim sAuditTable as string
+dim sSrcSysObjects as String
+dim sAuditSysObjects as string
+dim sTrigger as string
+dim offSet as Integer
+
+offSet = 0
+For each tbl as tableschema in SourceDatabase.Tables
+        dim ti as MetaData.TableInfo
+        ti = MetaData.TableExtension.getTableInfo(sourcedatabase.Name, tbl.Name)
+        if (ti.EnableAudit) then
+            Dim txtFile As new system.IO.StreamWriter(OutputPath + "\a_" + tbl.Name + "_Audit.sql")
+            sTable = SourceDatabase.Name + "." + SourceOwner + "." + tbl.Name
+            sAuditTable = AuditDatabase.Name + "." + AuditOwner + "." + tbl.Name + "_Audit"
+            sSrcSysObjects = SourceDatabase.Name + "." + SourceOwner + ".sysobjects" 
+            sAuditSysObjects = AuditDatabase.Name + "." + AuditOwner + ".sysobjects" 
+            sTrigger = "TRG_" & tbl.Name & "_Audit"
+            txtFile.WriteLine(space(offSet) + String.Format("If not Exists(Select 1 from {0} where name=N" + "'" + "{1}_Audit" + "' and type='U')",  sAuditSysObjects, tbl.name))
+            txtFile.WriteLine(space(offSet) + "Begin")
+            offSet = offSet + 3
+                txtFile.WriteLine(space(offSet) + String.Format("CREATE TABLE {0}(", sAuditTable))
+                offSet = offSet + 3
+                    txtFile.WriteLine(space(offSet) + String.Format("[AuditID] int identity not null,"))
+                    txtFile.WriteLine(space(offSet) + String.Format("[AuditDate] datetime not null,"))
+                    txtFile.WriteLine(space(offSet) + String.Format("[AuditType] varchar(1) not null,"))
+                	bFirst = true
+                	Response.IndentLevel = 1
+                	for each objColumn as schemaexplorer.ColumnSchema in tbl.Columns 
+                		'Write the column definition
+                		select case objColumn.NativeType.ToLower
+                			case "varchar", "nvarchar"
+                				sColumn =  "[" & objColumn.Name & "] " & objColumn.NativeType & "(" & objColumn.Size.ToString & ")"
+                			case else
+                				sColumn =  "[" & objColumn.Name & "] " & objColumn.NativeType 
+                		end select
+                		
+                		IF objColumn.AllowDBNull then
+                			sColumn = sColumn & " NULL, "
+                		else
+                			sColumn = sColumn & " NOT NULL, "
+                		end if		
+                		txtFile.WriteLine(space(offSet) + sColumn)
+                	Next 
+                   txtFile.WriteLine(space(offSet)+ string.Format("CONSTRAINT [PK_{0}_AuditID] PRIMARY KEY  CLUSTERED", tbl.Name)) 
+                   txtFile.WriteLine(space(offSet)+ "(")
+            	   txtFile.WriteLine(space(offSet)+"[AuditID]")
+            	   txtFile.WriteLine(space(offSet) + ") WITH  FILLFACTOR = 90  ON [PRIMARY] ")
+                   txtFile.WriteLine(space(offSet)+ ") ON [PRIMARY]")
+                offSet = offSet - 3
+                txtFile.WriteLine(space(offSet) + "End")
+                txtFile.WriteLine(space(offSet)+ "GO")                
+                txtFile.WriteLine(space(offSet) + string.Format("IF EXISTS (SELECT name FROM   sysobjects WHERE  name = N'{0}'  AND type = 'TR')", sTrigger))
+                txtFile.WriteLine(space(offSet) + "   DROP TRIGGER [{0}]", sTrigger)
+                txtFile.WriteLine(space(offSet) + "GO")
+
+                txtFile.WriteLine(space(offSet) + "CREATE TRIGGER [{0}]", sTrigger)
+                txtFile.WriteLine(space(offSet) + "ON {0}", sTable)
+                txtFile.WriteLine(space(offSet) + "FOR DELETE, UPDATE , INSERT")
+                txtFile.WriteLine(space(offSet) + "AS")
+                txtFile.WriteLine(space(offSet) + "BEGIN")
+                txtFile.WriteLine(space(offSet) + "SET NOCOUNT ON")
+                txtFile.WriteLine(space(offSet) + "DECLARE @type VARCHAR(1)")
+                txtFile.WriteLine(space(offSet) + "if exists (select * from inserted) and exists (select * from deleted)")
+                txtFile.WriteLine(space(offSet) + "   set @type = 'U'")
+                txtFile.WriteLine(space(offSet) + "else if exists (select * from inserted)")
+                txtFile.WriteLine(space(offSet) + "   set @type = 'I'")
+                txtFile.WriteLine(space(offSet) + "else")
+                txtFile.WriteLine(space(offSet) + "   set @type = 'D'")
+            txtFile.WriteLine(space(offSet) + "if @type = 'D'")
+            	txtFile.WriteLine(space(offSet) + "-- Save the deleted for update and delete.")
+            	txtFile.WriteLine(space(offSet) + String.Format("INSERT INTO [{0}].[{1}].[{2}_Audit]", auditdatabase.Name, auditowner, tbl.name))
+            		txtFile.WriteLine(space(offSet) + "(")
+            		txtFile.WriteLine(space(offSet) + "[AuditDate],")
+            		txtFile.WriteLine(space(offSet) + "[AuditType],") 
+                
+            	'Get the column list
+            	bFirst = true
+            	response.IndentLevel = 0
+            	for each objColumn as schemaexplorer.ColumnSchema in tbl.Columns 
+            		if objColumn.NativeType.ToLower <> "timestamp" then
+            			sColumn = ""
+            			if bFirst then
+            				bFirst = False
+            			else
+            				sColumn = ", " 
+            			end if
+            			sColumn = sColumn & "[" & objColumn.Name & "]"				
+            			txtFile.Writeline(space(offset) + sColumn)
+            		end if
+            	Next 
+                
+                txtFile.Writeline(space(offset) + ")")
+            	txtFile.Writeline(space(offset) + "SELECT [AuditDate] = getdate(), [AuditType] = @type,")
+            	'Get the column list
+            	bFirst = true
+            	response.IndentLevel = 0
+            	for each objColumn as schemaexplorer.ColumnSchema in tbl.Columns 
+            		if objColumn.NativeType.ToLower <> "timestamp" then
+            			sColumn = ""
+            			if bFirst then
+            				bFirst = False
+            			else
+            				sColumn = ", " 
+            			end if
+            			select case objColumn.NativeType.ToLower
+            				case "text","ntext"
+            					sColumn = sColumn & "[" & objColumn.Name & "] = 'DELETED'"
+            				case else
+            					sColumn = sColumn & "[" & objColumn.Name & "]"				
+            			end select
+            			txtFile.Writeline(space(offset) + sColumn)
+            		end if
+            	Next 
+                txtFile.Writeline(space(offset) + "FROM deleted")
+                txtFile.Writeline(space(offset) + "else")
+            	txtFile.Writeline(space(offset) + "-- Save the inserted")
+            	txtFile.Writeline(space(offset) + String.Format("INSERT INTO [{0}].[{1}].[{2}_Audit]", Auditdatabase.Name, auditowner, tbl.Name))
+            	txtFile.Writeline(space(offset) + "([AuditDate], [AuditType], ")
+            	'Get the column list
+            	bFirst = true
+            	response.IndentLevel = 0
+            	for each objColumn as schemaexplorer.ColumnSchema in tbl.Columns 
+            		if objColumn.NativeType.ToLower <> "timestamp" then
+            			sColumn = ""
+            			if bFirst then
+            				bFirst = False
+            			else
+            				sColumn = ", " 
+            			end if
+            			sColumn = sColumn & "[" & objColumn.Name & "]"				
+            			txtFile.Writeline(space(offset) + sColumn)
+            		end if
+            	Next 
+            	txtFile.Writeline(space(offset) + ")")
+            	txtFile.Writeline(space(offset) + "SELECT [AuditDate] = getdate(), [AuditType] = @type,")
+            	bFirst = true
+            	response.IndentLevel = 0
+            	for each objColumn as schemaexplorer.ColumnSchema in tbl.Columns 
+            		if objColumn.NativeType.ToLower <> "timestamp" then
+            			sColumn = ""
+            			if bFirst then
+            				bFirst = False
+            			else
+            				sColumn =  ", " 
+            			end if
+            			sColumn = sColumn & "src.[" & objColumn.Name & "]"	
+            			txtFile.Writeline(space(offset) + sColumn)
+            		end if
+            	Next 
+            	txtFile.Writeline(space(offset) + String.Format("FROM inserted, [{0}].[{1}].[{2}] src", sourcedatabase.Name, sourceowner, tbl.Name))
+            	bFirst = true
+            	response.IndentLevel = 0
+            	for each objColumn as schemaexplorer.ColumnSchema in tbl.PrimaryKey.MemberColumns
+            			sColumn = ""
+            			if bFirst then
+            				bFirst = False
+            				txtFile.Writeline(space(offset) + String.Format("	WHERE inserted.[{0}] = src.[{0}]", objColumn.Name))
+            			else
+            				txtFile.Writeline(space(offset) + String.Format("	AND inserted.[{0}] = src.[{0}]",objcolumn.Name))
+            			end if
+            	Next 
+            txtFile.Writeline(space(offset) + "END")
+            txtFile.Writeline(space(offset) + "GO")
+            offSet = offSet - 3
+            txtFile.Close()
+        end if
+
+next 'objTable
+%>
