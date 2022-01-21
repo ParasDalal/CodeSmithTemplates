@@ -1,4 +1,5 @@
-﻿-- Processing __EFMigrationsHistory
+﻿-- Skipping FidelityAditya because it does not have a primary key
+-- Processing __EFMigrationsHistory
 --region Drop Existing Procedures
 
 IF OBJECT_ID(N'[dbo].[usp_Insert__EFMigrationsHistory]') IS NOT NULL
@@ -279,31 +280,37 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertAccount]
+	@AccountNumber nvarchar(30),
 	@Description nvarchar(30),
 	@Active bit,
 	@PortfolioId int,
+	@Taxable bit,
 	@TaxDeferred bit,
 	@TaxPaid bit,
-	@Taxable bit,
+	@SecurityIdCash int,
 	@Id int OUTPUT
 AS
 
 SET NOCOUNT ON
 
 INSERT INTO [dbo].[Account] (
+	[AccountNumber],
 	[Description],
 	[Active],
 	[PortfolioId],
+	[Taxable],
 	[TaxDeferred],
 	[TaxPaid],
-	[Taxable]
+	[SecurityIdCash]
 ) VALUES (
+	@AccountNumber,
 	@Description,
 	@Active,
 	@PortfolioId,
+	@Taxable,
 	@TaxDeferred,
 	@TaxPaid,
-	@Taxable
+	@SecurityIdCash
 )
 
 SET @Id = SCOPE_IDENTITY()
@@ -320,23 +327,27 @@ GO
 
 CREATE PROCEDURE [dbo].[usp_UpdateAccount]
 	@Id int,
+	@AccountNumber nvarchar(30),
 	@Description nvarchar(30),
 	@Active bit,
 	@PortfolioId int,
+	@Taxable bit,
 	@TaxDeferred bit,
 	@TaxPaid bit,
-	@Taxable bit
+	@SecurityIdCash int
 AS
 
 SET NOCOUNT ON
 
 UPDATE [dbo].[Account] SET
+	[AccountNumber] = @AccountNumber,
 	[Description] = @Description,
 	[Active] = @Active,
 	[PortfolioId] = @PortfolioId,
+	[Taxable] = @Taxable,
 	[TaxDeferred] = @TaxDeferred,
 	[TaxPaid] = @TaxPaid,
-	[Taxable] = @Taxable
+	[SecurityIdCash] = @SecurityIdCash
 WHERE
 	[Id] = @Id
 
@@ -351,12 +362,14 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertUpdateAccount]
+	@AccountNumber nvarchar(30),
 	@Description nvarchar(30),
 	@Active bit,
 	@PortfolioId int,
+	@Taxable bit,
 	@TaxDeferred bit,
 	@TaxPaid bit,
-	@Taxable bit,
+	@SecurityIdCash int,
 	@Id int OUTPUT
 AS
 
@@ -366,12 +379,14 @@ SET NOCOUNT ON
 IF EXISTS(SELECT [Id] FROM [dbo].[Account] WHERE [Id] = @Id)
 BEGIN
 	UPDATE [dbo].[Account] SET
+		[AccountNumber] = @AccountNumber,
 		[Description] = @Description,
 		[Active] = @Active,
 		[PortfolioId] = @PortfolioId,
+		[Taxable] = @Taxable,
 		[TaxDeferred] = @TaxDeferred,
 		[TaxPaid] = @TaxPaid,
-		[Taxable] = @Taxable
+		[SecurityIdCash] = @SecurityIdCash
 	WHERE
 		[Id] = @Id
 END
@@ -380,19 +395,23 @@ BEGIN
 		      -- CS_IsIdentity there
     
 	INSERT INTO [dbo].[Account] (
+		[AccountNumber],
 		[Description],
 		[Active],
 		[PortfolioId],
+		[Taxable],
 		[TaxDeferred],
 		[TaxPaid],
-		[Taxable]
+		[SecurityIdCash]
 	) VALUES (
+		@AccountNumber,
 		@Description,
 		@Active,
 		@PortfolioId,
+		@Taxable,
 		@TaxDeferred,
 		@TaxPaid,
-		@Taxable
+		@SecurityIdCash
 	)
 END
 
@@ -465,12 +484,14 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[AccountNumber],
 	[Description],
 	[Active],
 	[PortfolioId],
+	[Taxable],
 	[TaxDeferred],
 	[TaxPaid],
-	[Taxable]
+	[SecurityIdCash]
 FROM
 	[dbo].[Account]
 WHERE
@@ -499,12 +520,14 @@ DECLARE @SQL nvarchar(3250)
 SET @SQL = '
 SELECT
 	[Id],
+	[AccountNumber],
 	[Description],
 	[Active],
 	[PortfolioId],
+	[Taxable],
 	[TaxDeferred],
 	[TaxPaid],
-	[Taxable]
+	[SecurityIdCash]
 FROM
 	[dbo].[Account]
 WHERE
@@ -537,12 +560,14 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[AccountNumber],
 	[Description],
 	[Active],
 	[PortfolioId],
+	[Taxable],
 	[TaxDeferred],
 	[TaxPaid],
-	[Taxable]
+	[SecurityIdCash]
 FROM
 	[dbo].[Account]
 
@@ -564,14 +589,590 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[AccountNumber],
 	[Description],
 	[Active],
 	[PortfolioId],
+	[Taxable],
 	[TaxDeferred],
 	[TaxPaid],
-	[Taxable]
+	[SecurityIdCash]
 FROM
 	[dbo].[Account]
+
+--endregion
+
+GO
+
+-- Processing AccountPosition
+--region Drop Existing Procedures
+
+IF OBJECT_ID(N'[dbo].[usp_InsertAccountPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertAccountPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_UpdateAccountPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_UpdateAccountPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_InsertUpdateAccountPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertUpdateAccountPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteAccountPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteAccountPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteAccountPositionsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteAccountPositionsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAccountPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAccountPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAccountPositionsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAccountPositionsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAccountPositionsAll]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAccountPositionsAll]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAccountPositionsPaged]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAccountPositionsPaged]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertAccountPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertAccountPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertAccountPosition]
+	@AccountId int,
+	@TotalMV decimal(18, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+INSERT INTO [dbo].[AccountPosition] (
+	[AccountId],
+	[TotalMV]
+) VALUES (
+	@AccountId,
+	@TotalMV
+)
+
+SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_UpdateAccountPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_UpdateAccountPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_UpdateAccountPosition]
+	@Id int,
+	@AccountId int,
+	@TotalMV decimal(18, 2)
+AS
+
+SET NOCOUNT ON
+
+UPDATE [dbo].[AccountPosition] SET
+	[AccountId] = @AccountId,
+	[TotalMV] = @TotalMV
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertUpdateAccountPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertUpdateAccountPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertUpdateAccountPosition]
+	@AccountId int,
+	@TotalMV decimal(18, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+
+IF EXISTS(SELECT [Id] FROM [dbo].[AccountPosition] WHERE [Id] = @Id)
+BEGIN
+	UPDATE [dbo].[AccountPosition] SET
+		[AccountId] = @AccountId,
+		[TotalMV] = @TotalMV
+	WHERE
+		[Id] = @Id
+END
+ELSE
+BEGIN
+		      -- CS_IsIdentity there
+    
+	INSERT INTO [dbo].[AccountPosition] (
+		[AccountId],
+		[TotalMV]
+	) VALUES (
+		@AccountId,
+		@TotalMV
+	)
+END
+
+IF IsNull(@Id, 0) = 0 
+    SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteAccountPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteAccountPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteAccountPosition]
+	@Id int
+AS
+
+SET NOCOUNT ON
+
+
+DELETE FROM [dbo].[AccountPosition]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteAccountPositionsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteAccountPositionsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteAccountPositionsDynamic]
+	@WhereCondition nvarchar(500)
+AS
+
+SET NOCOUNT ON
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+DELETE FROM
+	[dbo].[AccountPosition]
+WHERE
+	' + @WhereCondition
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAccountPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAccountPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAccountPosition]
+	@Id int
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[TotalMV]
+FROM
+	[dbo].[AccountPosition]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAccountPositionsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAccountPositionsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAccountPositionsDynamic]
+	@WhereCondition nvarchar(500),
+	@OrderByExpression nvarchar(250) = NULL
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+SELECT
+	[Id],
+	[AccountId],
+	[TotalMV]
+FROM
+	[dbo].[AccountPosition]
+WHERE
+	' + @WhereCondition
+
+IF @OrderByExpression IS NOT NULL AND LEN(@OrderByExpression) > 0
+BEGIN
+	SET @SQL = @SQL + '
+ORDER BY
+	' + @OrderByExpression
+END
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAccountPositionsAll]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAccountPositionsAll]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAccountPositionsAll]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[TotalMV]
+FROM
+	[dbo].[AccountPosition]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAccountPositionsPaged]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAccountPositionsPaged]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAccountPositionsPaged]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[TotalMV]
+FROM
+	[dbo].[AccountPosition]
+
+--endregion
+
+GO
+
+-- Processing AssetSubType
+--region Drop Existing Procedures
+
+IF OBJECT_ID(N'[dbo].[usp_InsertAssetSubType]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertAssetSubType]
+
+IF OBJECT_ID(N'[dbo].[usp_UpdateAssetSubType]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_UpdateAssetSubType]
+
+IF OBJECT_ID(N'[dbo].[usp_InsertUpdateAssetSubType]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertUpdateAssetSubType]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteAssetSubType]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteAssetSubType]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteAssetSubTypesDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteAssetSubTypesDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAssetSubType]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAssetSubType]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAssetSubTypesDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAssetSubTypesDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAssetSubTypesAll]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAssetSubTypesAll]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectAssetSubTypesPaged]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectAssetSubTypesPaged]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertAssetSubType]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertAssetSubType]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertAssetSubType]
+	@AssetTypeId int,
+	@Description nvarchar(30),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+INSERT INTO [dbo].[AssetSubType] (
+	[AssetTypeId],
+	[Description]
+) VALUES (
+	@AssetTypeId,
+	@Description
+)
+
+SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_UpdateAssetSubType]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_UpdateAssetSubType]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_UpdateAssetSubType]
+	@Id int,
+	@AssetTypeId int,
+	@Description nvarchar(30)
+AS
+
+SET NOCOUNT ON
+
+UPDATE [dbo].[AssetSubType] SET
+	[AssetTypeId] = @AssetTypeId,
+	[Description] = @Description
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertUpdateAssetSubType]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertUpdateAssetSubType]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertUpdateAssetSubType]
+	@AssetTypeId int,
+	@Description nvarchar(30),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+
+IF EXISTS(SELECT [Id] FROM [dbo].[AssetSubType] WHERE [Id] = @Id)
+BEGIN
+	UPDATE [dbo].[AssetSubType] SET
+		[AssetTypeId] = @AssetTypeId,
+		[Description] = @Description
+	WHERE
+		[Id] = @Id
+END
+ELSE
+BEGIN
+		      -- CS_IsIdentity there
+    
+	INSERT INTO [dbo].[AssetSubType] (
+		[AssetTypeId],
+		[Description]
+	) VALUES (
+		@AssetTypeId,
+		@Description
+	)
+END
+
+IF IsNull(@Id, 0) = 0 
+    SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteAssetSubType]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteAssetSubType]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteAssetSubType]
+	@Id int
+AS
+
+SET NOCOUNT ON
+
+
+DELETE FROM [dbo].[AssetSubType]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteAssetSubTypesDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteAssetSubTypesDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteAssetSubTypesDynamic]
+	@WhereCondition nvarchar(500)
+AS
+
+SET NOCOUNT ON
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+DELETE FROM
+	[dbo].[AssetSubType]
+WHERE
+	' + @WhereCondition
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAssetSubType]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAssetSubType]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAssetSubType]
+	@Id int
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AssetTypeId],
+	[Description]
+FROM
+	[dbo].[AssetSubType]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAssetSubTypesDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAssetSubTypesDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAssetSubTypesDynamic]
+	@WhereCondition nvarchar(500),
+	@OrderByExpression nvarchar(250) = NULL
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+SELECT
+	[Id],
+	[AssetTypeId],
+	[Description]
+FROM
+	[dbo].[AssetSubType]
+WHERE
+	' + @WhereCondition
+
+IF @OrderByExpression IS NOT NULL AND LEN(@OrderByExpression) > 0
+BEGIN
+	SET @SQL = @SQL + '
+ORDER BY
+	' + @OrderByExpression
+END
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAssetSubTypesAll]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAssetSubTypesAll]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAssetSubTypesAll]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AssetTypeId],
+	[Description]
+FROM
+	[dbo].[AssetSubType]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectAssetSubTypesPaged]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectAssetSubTypesPaged]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectAssetSubTypesPaged]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AssetTypeId],
+	[Description]
+FROM
+	[dbo].[AssetSubType]
 
 --endregion
 
@@ -1138,6 +1739,332 @@ FROM
 
 GO
 
+-- Processing Position
+--region Drop Existing Procedures
+
+IF OBJECT_ID(N'[dbo].[usp_InsertPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_UpdatePosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_UpdatePosition]
+
+IF OBJECT_ID(N'[dbo].[usp_InsertUpdatePosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertUpdatePosition]
+
+IF OBJECT_ID(N'[dbo].[usp_DeletePosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeletePosition]
+
+IF OBJECT_ID(N'[dbo].[usp_DeletePositionsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeletePositionsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectPosition]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectPosition]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectPositionsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectPositionsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectPositionsAll]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectPositionsAll]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectPositionsPaged]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectPositionsPaged]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertPosition]
+	@AccountPositionId int,
+	@AccountId int,
+	@SecurityId int,
+	@Quantity decimal(10, 3),
+	@AverageCost decimal(9, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+INSERT INTO [dbo].[Position] (
+	[AccountPositionId],
+	[AccountId],
+	[SecurityId],
+	[Quantity],
+	[AverageCost]
+) VALUES (
+	@AccountPositionId,
+	@AccountId,
+	@SecurityId,
+	@Quantity,
+	@AverageCost
+)
+
+SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_UpdatePosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_UpdatePosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_UpdatePosition]
+	@Id int,
+	@AccountPositionId int,
+	@AccountId int,
+	@SecurityId int,
+	@Quantity decimal(10, 3),
+	@AverageCost decimal(9, 2)
+AS
+
+SET NOCOUNT ON
+
+UPDATE [dbo].[Position] SET
+	[AccountPositionId] = @AccountPositionId,
+	[AccountId] = @AccountId,
+	[SecurityId] = @SecurityId,
+	[Quantity] = @Quantity,
+	[AverageCost] = @AverageCost
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertUpdatePosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertUpdatePosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertUpdatePosition]
+	@AccountPositionId int,
+	@AccountId int,
+	@SecurityId int,
+	@Quantity decimal(10, 3),
+	@AverageCost decimal(9, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+
+IF EXISTS(SELECT [Id] FROM [dbo].[Position] WHERE [Id] = @Id)
+BEGIN
+	UPDATE [dbo].[Position] SET
+		[AccountPositionId] = @AccountPositionId,
+		[AccountId] = @AccountId,
+		[SecurityId] = @SecurityId,
+		[Quantity] = @Quantity,
+		[AverageCost] = @AverageCost
+	WHERE
+		[Id] = @Id
+END
+ELSE
+BEGIN
+		      -- CS_IsIdentity there
+    
+	INSERT INTO [dbo].[Position] (
+		[AccountPositionId],
+		[AccountId],
+		[SecurityId],
+		[Quantity],
+		[AverageCost]
+	) VALUES (
+		@AccountPositionId,
+		@AccountId,
+		@SecurityId,
+		@Quantity,
+		@AverageCost
+	)
+END
+
+IF IsNull(@Id, 0) = 0 
+    SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeletePosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeletePosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeletePosition]
+	@Id int
+AS
+
+SET NOCOUNT ON
+
+
+DELETE FROM [dbo].[Position]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeletePositionsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeletePositionsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeletePositionsDynamic]
+	@WhereCondition nvarchar(500)
+AS
+
+SET NOCOUNT ON
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+DELETE FROM
+	[dbo].[Position]
+WHERE
+	' + @WhereCondition
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectPosition]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectPosition]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectPosition]
+	@Id int
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountPositionId],
+	[AccountId],
+	[SecurityId],
+	[Quantity],
+	[AverageCost]
+FROM
+	[dbo].[Position]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectPositionsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectPositionsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectPositionsDynamic]
+	@WhereCondition nvarchar(500),
+	@OrderByExpression nvarchar(250) = NULL
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+SELECT
+	[Id],
+	[AccountPositionId],
+	[AccountId],
+	[SecurityId],
+	[Quantity],
+	[AverageCost]
+FROM
+	[dbo].[Position]
+WHERE
+	' + @WhereCondition
+
+IF @OrderByExpression IS NOT NULL AND LEN(@OrderByExpression) > 0
+BEGIN
+	SET @SQL = @SQL + '
+ORDER BY
+	' + @OrderByExpression
+END
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectPositionsAll]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectPositionsAll]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectPositionsAll]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountPositionId],
+	[AccountId],
+	[SecurityId],
+	[Quantity],
+	[AverageCost]
+FROM
+	[dbo].[Position]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectPositionsPaged]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectPositionsPaged]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectPositionsPaged]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountPositionId],
+	[AccountId],
+	[SecurityId],
+	[Quantity],
+	[AverageCost]
+FROM
+	[dbo].[Position]
+
+--endregion
+
+GO
+
 -- Processing RebalModel
 --region Drop Existing Procedures
 
@@ -1455,6 +2382,7 @@ GO
 CREATE PROCEDURE [dbo].[usp_InsertRebalModelTarget]
 	@RebalModelId int,
 	@AssetTypeId int,
+	@AssetSubTypeId int,
 	@TargetPercent decimal(5, 2),
 	@Id int OUTPUT
 AS
@@ -1464,10 +2392,12 @@ SET NOCOUNT ON
 INSERT INTO [dbo].[RebalModelTarget] (
 	[RebalModelId],
 	[AssetTypeId],
+	[AssetSubTypeId],
 	[TargetPercent]
 ) VALUES (
 	@RebalModelId,
 	@AssetTypeId,
+	@AssetSubTypeId,
 	@TargetPercent
 )
 
@@ -1487,6 +2417,7 @@ CREATE PROCEDURE [dbo].[usp_UpdateRebalModelTarget]
 	@Id int,
 	@RebalModelId int,
 	@AssetTypeId int,
+	@AssetSubTypeId int,
 	@TargetPercent decimal(5, 2)
 AS
 
@@ -1495,6 +2426,7 @@ SET NOCOUNT ON
 UPDATE [dbo].[RebalModelTarget] SET
 	[RebalModelId] = @RebalModelId,
 	[AssetTypeId] = @AssetTypeId,
+	[AssetSubTypeId] = @AssetSubTypeId,
 	[TargetPercent] = @TargetPercent
 WHERE
 	[Id] = @Id
@@ -1512,6 +2444,7 @@ GO
 CREATE PROCEDURE [dbo].[usp_InsertUpdateRebalModelTarget]
 	@RebalModelId int,
 	@AssetTypeId int,
+	@AssetSubTypeId int,
 	@TargetPercent decimal(5, 2),
 	@Id int OUTPUT
 AS
@@ -1524,6 +2457,7 @@ BEGIN
 	UPDATE [dbo].[RebalModelTarget] SET
 		[RebalModelId] = @RebalModelId,
 		[AssetTypeId] = @AssetTypeId,
+		[AssetSubTypeId] = @AssetSubTypeId,
 		[TargetPercent] = @TargetPercent
 	WHERE
 		[Id] = @Id
@@ -1535,10 +2469,12 @@ BEGIN
 	INSERT INTO [dbo].[RebalModelTarget] (
 		[RebalModelId],
 		[AssetTypeId],
+		[AssetSubTypeId],
 		[TargetPercent]
 	) VALUES (
 		@RebalModelId,
 		@AssetTypeId,
+		@AssetSubTypeId,
 		@TargetPercent
 	)
 END
@@ -1614,6 +2550,7 @@ SELECT
 	[Id],
 	[RebalModelId],
 	[AssetTypeId],
+	[AssetSubTypeId],
 	[TargetPercent]
 FROM
 	[dbo].[RebalModelTarget]
@@ -1645,6 +2582,7 @@ SELECT
 	[Id],
 	[RebalModelId],
 	[AssetTypeId],
+	[AssetSubTypeId],
 	[TargetPercent]
 FROM
 	[dbo].[RebalModelTarget]
@@ -1680,6 +2618,7 @@ SELECT
 	[Id],
 	[RebalModelId],
 	[AssetTypeId],
+	[AssetSubTypeId],
 	[TargetPercent]
 FROM
 	[dbo].[RebalModelTarget]
@@ -1704,6 +2643,7 @@ SELECT
 	[Id],
 	[RebalModelId],
 	[AssetTypeId],
+	[AssetSubTypeId],
 	[TargetPercent]
 FROM
 	[dbo].[RebalModelTarget]
@@ -1753,10 +2693,17 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertSecurity]
-	@Description nvarchar(30),
+	@Description nvarchar(100),
 	@Symbol nvarchar(30),
 	@AssetTypeId int,
 	@Price decimal(9, 2),
+	@SpecialPrice bit,
+	@AssetSubTypeId1 int,
+	@AssetSubType1Percent decimal(9, 2),
+	@AssetSubTypeId2 int,
+	@AssetSubType2Percent decimal(9, 2),
+	@AssetSubTypeId3 int,
+	@AssetSubType3Percent decimal(9, 2),
 	@Id int OUTPUT
 AS
 
@@ -1766,12 +2713,26 @@ INSERT INTO [dbo].[Security] (
 	[Description],
 	[Symbol],
 	[AssetTypeId],
-	[Price]
+	[Price],
+	[SpecialPrice],
+	[AssetSubTypeId1],
+	[AssetSubType1Percent],
+	[AssetSubTypeId2],
+	[AssetSubType2Percent],
+	[AssetSubTypeId3],
+	[AssetSubType3Percent]
 ) VALUES (
 	@Description,
 	@Symbol,
 	@AssetTypeId,
-	@Price
+	@Price,
+	@SpecialPrice,
+	@AssetSubTypeId1,
+	@AssetSubType1Percent,
+	@AssetSubTypeId2,
+	@AssetSubType2Percent,
+	@AssetSubTypeId3,
+	@AssetSubType3Percent
 )
 
 SET @Id = SCOPE_IDENTITY()
@@ -1788,10 +2749,17 @@ GO
 
 CREATE PROCEDURE [dbo].[usp_UpdateSecurity]
 	@Id int,
-	@Description nvarchar(30),
+	@Description nvarchar(100),
 	@Symbol nvarchar(30),
 	@AssetTypeId int,
-	@Price decimal(9, 2)
+	@Price decimal(9, 2),
+	@SpecialPrice bit,
+	@AssetSubTypeId1 int,
+	@AssetSubType1Percent decimal(9, 2),
+	@AssetSubTypeId2 int,
+	@AssetSubType2Percent decimal(9, 2),
+	@AssetSubTypeId3 int,
+	@AssetSubType3Percent decimal(9, 2)
 AS
 
 SET NOCOUNT ON
@@ -1800,7 +2768,14 @@ UPDATE [dbo].[Security] SET
 	[Description] = @Description,
 	[Symbol] = @Symbol,
 	[AssetTypeId] = @AssetTypeId,
-	[Price] = @Price
+	[Price] = @Price,
+	[SpecialPrice] = @SpecialPrice,
+	[AssetSubTypeId1] = @AssetSubTypeId1,
+	[AssetSubType1Percent] = @AssetSubType1Percent,
+	[AssetSubTypeId2] = @AssetSubTypeId2,
+	[AssetSubType2Percent] = @AssetSubType2Percent,
+	[AssetSubTypeId3] = @AssetSubTypeId3,
+	[AssetSubType3Percent] = @AssetSubType3Percent
 WHERE
 	[Id] = @Id
 
@@ -1815,10 +2790,17 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertUpdateSecurity]
-	@Description nvarchar(30),
+	@Description nvarchar(100),
 	@Symbol nvarchar(30),
 	@AssetTypeId int,
 	@Price decimal(9, 2),
+	@SpecialPrice bit,
+	@AssetSubTypeId1 int,
+	@AssetSubType1Percent decimal(9, 2),
+	@AssetSubTypeId2 int,
+	@AssetSubType2Percent decimal(9, 2),
+	@AssetSubTypeId3 int,
+	@AssetSubType3Percent decimal(9, 2),
 	@Id int OUTPUT
 AS
 
@@ -1831,7 +2813,14 @@ BEGIN
 		[Description] = @Description,
 		[Symbol] = @Symbol,
 		[AssetTypeId] = @AssetTypeId,
-		[Price] = @Price
+		[Price] = @Price,
+		[SpecialPrice] = @SpecialPrice,
+		[AssetSubTypeId1] = @AssetSubTypeId1,
+		[AssetSubType1Percent] = @AssetSubType1Percent,
+		[AssetSubTypeId2] = @AssetSubTypeId2,
+		[AssetSubType2Percent] = @AssetSubType2Percent,
+		[AssetSubTypeId3] = @AssetSubTypeId3,
+		[AssetSubType3Percent] = @AssetSubType3Percent
 	WHERE
 		[Id] = @Id
 END
@@ -1843,12 +2832,26 @@ BEGIN
 		[Description],
 		[Symbol],
 		[AssetTypeId],
-		[Price]
+		[Price],
+		[SpecialPrice],
+		[AssetSubTypeId1],
+		[AssetSubType1Percent],
+		[AssetSubTypeId2],
+		[AssetSubType2Percent],
+		[AssetSubTypeId3],
+		[AssetSubType3Percent]
 	) VALUES (
 		@Description,
 		@Symbol,
 		@AssetTypeId,
-		@Price
+		@Price,
+		@SpecialPrice,
+		@AssetSubTypeId1,
+		@AssetSubType1Percent,
+		@AssetSubTypeId2,
+		@AssetSubType2Percent,
+		@AssetSubTypeId3,
+		@AssetSubType3Percent
 	)
 END
 
@@ -1924,7 +2927,14 @@ SELECT
 	[Description],
 	[Symbol],
 	[AssetTypeId],
-	[Price]
+	[Price],
+	[SpecialPrice],
+	[AssetSubTypeId1],
+	[AssetSubType1Percent],
+	[AssetSubTypeId2],
+	[AssetSubType2Percent],
+	[AssetSubTypeId3],
+	[AssetSubType3Percent]
 FROM
 	[dbo].[Security]
 WHERE
@@ -1956,7 +2966,14 @@ SELECT
 	[Description],
 	[Symbol],
 	[AssetTypeId],
-	[Price]
+	[Price],
+	[SpecialPrice],
+	[AssetSubTypeId1],
+	[AssetSubType1Percent],
+	[AssetSubTypeId2],
+	[AssetSubType2Percent],
+	[AssetSubTypeId3],
+	[AssetSubType3Percent]
 FROM
 	[dbo].[Security]
 WHERE
@@ -1992,7 +3009,14 @@ SELECT
 	[Description],
 	[Symbol],
 	[AssetTypeId],
-	[Price]
+	[Price],
+	[SpecialPrice],
+	[AssetSubTypeId1],
+	[AssetSubType1Percent],
+	[AssetSubTypeId2],
+	[AssetSubType2Percent],
+	[AssetSubTypeId3],
+	[AssetSubType3Percent]
 FROM
 	[dbo].[Security]
 
@@ -2017,9 +3041,329 @@ SELECT
 	[Description],
 	[Symbol],
 	[AssetTypeId],
-	[Price]
+	[Price],
+	[SpecialPrice],
+	[AssetSubTypeId1],
+	[AssetSubType1Percent],
+	[AssetSubTypeId2],
+	[AssetSubType2Percent],
+	[AssetSubTypeId3],
+	[AssetSubType3Percent]
 FROM
 	[dbo].[Security]
+
+--endregion
+
+GO
+
+-- Processing TaxLot
+--region Drop Existing Procedures
+
+IF OBJECT_ID(N'[dbo].[usp_InsertTaxLot]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertTaxLot]
+
+IF OBJECT_ID(N'[dbo].[usp_UpdateTaxLot]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_UpdateTaxLot]
+
+IF OBJECT_ID(N'[dbo].[usp_InsertUpdateTaxLot]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_InsertUpdateTaxLot]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteTaxLot]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteTaxLot]
+
+IF OBJECT_ID(N'[dbo].[usp_DeleteTaxLotsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_DeleteTaxLotsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectTaxLot]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectTaxLot]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectTaxLotsDynamic]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectTaxLotsDynamic]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectTaxLotsAll]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectTaxLotsAll]
+
+IF OBJECT_ID(N'[dbo].[usp_SelectTaxLotsPaged]') IS NOT NULL
+	DROP PROCEDURE [dbo].[usp_SelectTaxLotsPaged]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertTaxLot]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertTaxLot]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertTaxLot]
+	@AccountId int,
+	@SecurityId int,
+	@Trade_Date datetime2,
+	@Quantity decimal(9, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+INSERT INTO [dbo].[TaxLot] (
+	[AccountId],
+	[SecurityId],
+	[Trade_Date],
+	[Quantity]
+) VALUES (
+	@AccountId,
+	@SecurityId,
+	@Trade_Date,
+	@Quantity
+)
+
+SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_UpdateTaxLot]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_UpdateTaxLot]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_UpdateTaxLot]
+	@Id int,
+	@AccountId int,
+	@SecurityId int,
+	@Trade_Date datetime2,
+	@Quantity decimal(9, 2)
+AS
+
+SET NOCOUNT ON
+
+UPDATE [dbo].[TaxLot] SET
+	[AccountId] = @AccountId,
+	[SecurityId] = @SecurityId,
+	[Trade_Date] = @Trade_Date,
+	[Quantity] = @Quantity
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_InsertUpdateTaxLot]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_InsertUpdateTaxLot]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_InsertUpdateTaxLot]
+	@AccountId int,
+	@SecurityId int,
+	@Trade_Date datetime2,
+	@Quantity decimal(9, 2),
+	@Id int OUTPUT
+AS
+
+SET NOCOUNT ON
+
+
+IF EXISTS(SELECT [Id] FROM [dbo].[TaxLot] WHERE [Id] = @Id)
+BEGIN
+	UPDATE [dbo].[TaxLot] SET
+		[AccountId] = @AccountId,
+		[SecurityId] = @SecurityId,
+		[Trade_Date] = @Trade_Date,
+		[Quantity] = @Quantity
+	WHERE
+		[Id] = @Id
+END
+ELSE
+BEGIN
+		      -- CS_IsIdentity there
+    
+	INSERT INTO [dbo].[TaxLot] (
+		[AccountId],
+		[SecurityId],
+		[Trade_Date],
+		[Quantity]
+	) VALUES (
+		@AccountId,
+		@SecurityId,
+		@Trade_Date,
+		@Quantity
+	)
+END
+
+IF IsNull(@Id, 0) = 0 
+    SET @Id = SCOPE_IDENTITY()
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteTaxLot]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteTaxLot]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteTaxLot]
+	@Id int
+AS
+
+SET NOCOUNT ON
+
+
+DELETE FROM [dbo].[TaxLot]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_DeleteTaxLotsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_DeleteTaxLotsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_DeleteTaxLotsDynamic]
+	@WhereCondition nvarchar(500)
+AS
+
+SET NOCOUNT ON
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+DELETE FROM
+	[dbo].[TaxLot]
+WHERE
+	' + @WhereCondition
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectTaxLot]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectTaxLot]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectTaxLot]
+	@Id int
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[SecurityId],
+	[Trade_Date],
+	[Quantity]
+FROM
+	[dbo].[TaxLot]
+WHERE
+	[Id] = @Id
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectTaxLotsDynamic]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectTaxLotsDynamic]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectTaxLotsDynamic]
+	@WhereCondition nvarchar(500),
+	@OrderByExpression nvarchar(250) = NULL
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+DECLARE @SQL nvarchar(3250)
+
+SET @SQL = '
+SELECT
+	[Id],
+	[AccountId],
+	[SecurityId],
+	[Trade_Date],
+	[Quantity]
+FROM
+	[dbo].[TaxLot]
+WHERE
+	' + @WhereCondition
+
+IF @OrderByExpression IS NOT NULL AND LEN(@OrderByExpression) > 0
+BEGIN
+	SET @SQL = @SQL + '
+ORDER BY
+	' + @OrderByExpression
+END
+
+EXEC sp_executesql @SQL
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectTaxLotsAll]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectTaxLotsAll]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectTaxLotsAll]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[SecurityId],
+	[Trade_Date],
+	[Quantity]
+FROM
+	[dbo].[TaxLot]
+
+--endregion
+
+GO
+
+--region [dbo].[usp_SelectTaxLotsPaged]
+
+------------------------------------------------------------------------------------------------------------------------
+-- Procedure Name: [dbo].[usp_SelectTaxLotsPaged]
+------------------------------------------------------------------------------------------------------------------------
+
+CREATE PROCEDURE [dbo].[usp_SelectTaxLotsPaged]
+AS
+
+SET NOCOUNT ON
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+
+SELECT
+	[Id],
+	[AccountId],
+	[SecurityId],
+	[Trade_Date],
+	[Quantity]
+FROM
+	[dbo].[TaxLot]
 
 --endregion
 
@@ -2066,6 +3410,7 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertTranType]
+	@Mnemonic varchar(5),
 	@Description nvarchar(30),
 	@Id int OUTPUT
 AS
@@ -2073,8 +3418,10 @@ AS
 SET NOCOUNT ON
 
 INSERT INTO [dbo].[TranType] (
+	[Mnemonic],
 	[Description]
 ) VALUES (
+	@Mnemonic,
 	@Description
 )
 
@@ -2092,12 +3439,14 @@ GO
 
 CREATE PROCEDURE [dbo].[usp_UpdateTranType]
 	@Id int,
+	@Mnemonic varchar(5),
 	@Description nvarchar(30)
 AS
 
 SET NOCOUNT ON
 
 UPDATE [dbo].[TranType] SET
+	[Mnemonic] = @Mnemonic,
 	[Description] = @Description
 WHERE
 	[Id] = @Id
@@ -2113,6 +3462,7 @@ GO
 ------------------------------------------------------------------------------------------------------------------------
 
 CREATE PROCEDURE [dbo].[usp_InsertUpdateTranType]
+	@Mnemonic varchar(5),
 	@Description nvarchar(30),
 	@Id int OUTPUT
 AS
@@ -2123,6 +3473,7 @@ SET NOCOUNT ON
 IF EXISTS(SELECT [Id] FROM [dbo].[TranType] WHERE [Id] = @Id)
 BEGIN
 	UPDATE [dbo].[TranType] SET
+		[Mnemonic] = @Mnemonic,
 		[Description] = @Description
 	WHERE
 		[Id] = @Id
@@ -2132,8 +3483,10 @@ BEGIN
 		      -- CS_IsIdentity there
     
 	INSERT INTO [dbo].[TranType] (
+		[Mnemonic],
 		[Description]
 	) VALUES (
+		@Mnemonic,
 		@Description
 	)
 END
@@ -2207,6 +3560,7 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[Mnemonic],
 	[Description]
 FROM
 	[dbo].[TranType]
@@ -2236,6 +3590,7 @@ DECLARE @SQL nvarchar(3250)
 SET @SQL = '
 SELECT
 	[Id],
+	[Mnemonic],
 	[Description]
 FROM
 	[dbo].[TranType]
@@ -2269,6 +3624,7 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[Mnemonic],
 	[Description]
 FROM
 	[dbo].[TranType]
@@ -2291,6 +3647,7 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED
 
 SELECT
 	[Id],
+	[Mnemonic],
 	[Description]
 FROM
 	[dbo].[TranType]
@@ -2346,6 +3703,8 @@ CREATE PROCEDURE [dbo].[usp_InsertUserInfo]
 	@eMail nvarchar(40),
 	@LastUsed datetime2,
 	@Active bit,
+	@PasswordHash varbinary(max),
+	@PasswordSalt varbinary(max),
 	@Id int OUTPUT
 AS
 
@@ -2357,14 +3716,18 @@ INSERT INTO [dbo].[UserInfo] (
 	[PassPhrase],
 	[eMail],
 	[LastUsed],
-	[Active]
+	[Active],
+	[PasswordHash],
+	[PasswordSalt]
 ) VALUES (
 	@Description,
 	@Password,
 	@PassPhrase,
 	@eMail,
 	@LastUsed,
-	@Active
+	@Active,
+	@PasswordHash,
+	@PasswordSalt
 )
 
 SET @Id = SCOPE_IDENTITY()
@@ -2386,7 +3749,9 @@ CREATE PROCEDURE [dbo].[usp_UpdateUserInfo]
 	@PassPhrase nvarchar(80),
 	@eMail nvarchar(40),
 	@LastUsed datetime2,
-	@Active bit
+	@Active bit,
+	@PasswordHash varbinary(max),
+	@PasswordSalt varbinary(max)
 AS
 
 SET NOCOUNT ON
@@ -2397,7 +3762,9 @@ UPDATE [dbo].[UserInfo] SET
 	[PassPhrase] = @PassPhrase,
 	[eMail] = @eMail,
 	[LastUsed] = @LastUsed,
-	[Active] = @Active
+	[Active] = @Active,
+	[PasswordHash] = @PasswordHash,
+	[PasswordSalt] = @PasswordSalt
 WHERE
 	[Id] = @Id
 
@@ -2418,6 +3785,8 @@ CREATE PROCEDURE [dbo].[usp_InsertUpdateUserInfo]
 	@eMail nvarchar(40),
 	@LastUsed datetime2,
 	@Active bit,
+	@PasswordHash varbinary(max),
+	@PasswordSalt varbinary(max),
 	@Id int OUTPUT
 AS
 
@@ -2432,7 +3801,9 @@ BEGIN
 		[PassPhrase] = @PassPhrase,
 		[eMail] = @eMail,
 		[LastUsed] = @LastUsed,
-		[Active] = @Active
+		[Active] = @Active,
+		[PasswordHash] = @PasswordHash,
+		[PasswordSalt] = @PasswordSalt
 	WHERE
 		[Id] = @Id
 END
@@ -2446,14 +3817,18 @@ BEGIN
 		[PassPhrase],
 		[eMail],
 		[LastUsed],
-		[Active]
+		[Active],
+		[PasswordHash],
+		[PasswordSalt]
 	) VALUES (
 		@Description,
 		@Password,
 		@PassPhrase,
 		@eMail,
 		@LastUsed,
-		@Active
+		@Active,
+		@PasswordHash,
+		@PasswordSalt
 	)
 END
 
@@ -2531,7 +3906,9 @@ SELECT
 	[PassPhrase],
 	[eMail],
 	[LastUsed],
-	[Active]
+	[Active],
+	[PasswordHash],
+	[PasswordSalt]
 FROM
 	[dbo].[UserInfo]
 WHERE
@@ -2565,7 +3942,9 @@ SELECT
 	[PassPhrase],
 	[eMail],
 	[LastUsed],
-	[Active]
+	[Active],
+	[PasswordHash],
+	[PasswordSalt]
 FROM
 	[dbo].[UserInfo]
 WHERE
@@ -2603,7 +3982,9 @@ SELECT
 	[PassPhrase],
 	[eMail],
 	[LastUsed],
-	[Active]
+	[Active],
+	[PasswordHash],
+	[PasswordSalt]
 FROM
 	[dbo].[UserInfo]
 
@@ -2630,7 +4011,9 @@ SELECT
 	[PassPhrase],
 	[eMail],
 	[LastUsed],
-	[Active]
+	[Active],
+	[PasswordHash],
+	[PasswordSalt]
 FROM
 	[dbo].[UserInfo]
 

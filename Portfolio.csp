@@ -1,18 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <codeSmith xmlns="http://www.codesmithtools.com/schema/csp.xsd">
   <variables>
-    <add key="ConnectionString1" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString2" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString3" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString4" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString5" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString6" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString7" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString8" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString9" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString10" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString11" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
-    <add key="ConnectionString12" value="Data Source=(local);Initial Catalog=PortfolioDB;Integrated Security=True" />
+    <add key="ConnectionString1" value="Data Source=DESKTOP;Initial Catalog=PortfolioDB;Integrated Security=True" />
   </variables>
   <propertySets>
     <propertySet name="SQLStoredProc" template="SQLGen\SQL_CRUD_Generator.cst">
@@ -65,7 +54,7 @@
       </property>
     </propertySet>
     <propertySet name="FormValidations" template="ProgGen\GenerateValidations.cst">
-      <property name="OutputPath">D:\SoftProjects\Rajpath\Source\WinApp\Common</property>
+      <property name="OutputPath">D:\SoftProjects\PortfolioVB\Source\Common</property>
       <property name="SourceDatabase">
         <connectionString>$(ConnectionString1)</connectionString>
         <providerType>SchemaExplorer.SqlSchemaProvider,SchemaExplorer.SqlSchemaProvider</providerType>
