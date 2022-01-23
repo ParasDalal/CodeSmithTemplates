@@ -228,6 +228,28 @@
             tColumns.Rows.Add(drColumn)
             tColumns.AcceptChanges()
         next
+        
+        dim idx as  integer
+        for idx = 1 to fi.Count 
+            fld = fi.Item(idx)
+            isLookup = False
+            isReadOnly = False
+            isHidden = False
+            if (fld.FieldType is nothing) then
+                Continue For
+            end if
+            if not (fld.FieldType is nothing) then
+                if ucase(fld.FieldType) <> ucase("Extra") then
+                    Continue For
+                end if
+            end if
+            drColumn = tColumns.NewRow
+            drColumn("Sequence") = fld.FldSequence
+            drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cText, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", fld.Description, fld.Description,  iif(fld.width > 0, fld.width, 100), "False"))
+            tColumns.Rows.Add(drColumn)
+            tColumns.AcceptChanges()
+        next       
+        
         Dim dv As New DataView(tColumns)
         dv.Sort = "Sequence"
         for each dvRow as DataRowView  in dv

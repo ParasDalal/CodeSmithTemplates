@@ -436,7 +436,7 @@
         txtFile.WriteLine(space(offSet) + "Private Sub mnu_btnDeleteClicked() Handles mnu.btnDeleteClicked")
         offSet = offSet + 3
         txtFile.WriteLine(space(offSet) + "Dim dlgResult As DialogResult")
-        txtFile.WriteLine(space(offSet) + "dlgResult = MessageBox.Show("+""""+"Delete current record?"+""""+", "+""""+"Delete?"+""""+", MessageBoxButtons.YesNo)")
+        txtFile.WriteLine(space(offSet) + "dlgResult = MessageBox.Show("+""""+"Delete current record?"+""""+", "+""""+"Delete?"+""""+ ", MessageBoxButtons.YesNo)")
         txtFile.WriteLine(space(offSet) + "If dlgResult = Windows.Forms.DialogResult.No Then")
             offSet = offSet + 3
             txtFile.WriteLine(space(offSet) + "Exit Sub")
@@ -444,6 +444,9 @@
         txtFile.WriteLine(space(offSet) + "End If")
         if ti.ProcBeforeDelete <> "" then
             txtFile.WriteLine(space(offSet) + "if {0} then", ti.ProcBeforeDelete)
+            offSet = offSet + 3
+            txtFile.WriteLine(space(offSet) + "messageBox.Show(" + """" + "Delete not allowed, as other data depends on this" + """" + ", " + """" + "Error" + """" + ", MessageBoxButtons.OK)")
+            offSet = offSet - 3 
             txtFile.WriteLine(space(offSet) + "   Return")
             txtFile.WriteLine(space(offSet) + "End If")
         end If 

@@ -1,4 +1,4 @@
-﻿-- Skipping FidelityAditya because it does not have a primary key
+﻿-- Skipping FidelityImport because it does not have a primary key
 -- Processing __EFMigrationsHistory
 --region Drop Existing Procedures
 
