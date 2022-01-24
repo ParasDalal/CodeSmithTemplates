@@ -193,21 +193,21 @@
             else if currCol.DataType = DBType.Int32 and ucase(currCol.Name) <> "ID" then
                 if isReadOnly then
                     drColumn("Sequence") = fld.FldSequence
-                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "True"))
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", currcol.Name, fld.Description, fld.width, "True", fld.Format))
                     'txtFile.WriteLine((space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "True")))
                 else
                     drColumn("Sequence") = fld.FldSequence
-                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "False"))
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", currcol.Name, fld.Description, fld.width, "False", fld.Format))
                     'txtFile.WriteLine((space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "False")))
                 end if
             else if currCol.DataType = DBType.Decimal and ucase(currCol.Name) <> "ID" then
                 if isReadOnly then
                     drColumn("Sequence") = fld.FldSequence
-                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "True"))
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", currcol.Name, fld.Description, fld.width, "True", fld.Format))
                     'txtFile.WriteLine((space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "True")))
                 else
                     drColumn("Sequence") = fld.FldSequence
-                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "False"))
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", currcol.Name, fld.Description, fld.width, "False", fld.Format))
                     'txtFile.WriteLine((space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", currcol.Name, fld.Description, fld.width, "False")))
                 end if
             else if currCol.DataType = DBType.Datetime  or currCol.DataType = DBType.DateTime2 or currCol.DataType = DbType.Date then
@@ -245,7 +245,19 @@
             end if
             drColumn = tColumns.NewRow
             drColumn("Sequence") = fld.FldSequence
-            drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cText, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", fld.Description, fld.Description,  iif(fld.width > 0, fld.width, 100), "False"))
+            if ((fld.DataType = "int") or (fld.DataType = "decimal")) then
+                if fld.isReadOnly then
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", fld.Description, fld.Description, fld.width, "True", fld.Format))
+                else
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cNumber, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3},,,, " + """" + "{4}" + """" + ")", fld.Description, fld.Description, fld.width, "False", fld.Format))
+                end if
+            else
+                if fld.isReadOnly then
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cText, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", fld.Description, fld.Description,  iif(fld.width > 0, fld.width, 100), "True"))
+                else
+                    drColumn("Text") = (space(offSet) + String.Format("grdDetail.AddColumn(libUtil.ucGrid.ColType.cText, " + """" + "{0}" + """" + ", " + """" + "{1}" + """" +  ", {2}, {3})", fld.Description, fld.Description,  iif(fld.width > 0, fld.width, 100), "False"))
+                end if
+            end if
             tColumns.Rows.Add(drColumn)
             tColumns.AcceptChanges()
         next       
